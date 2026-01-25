@@ -1,365 +1,338 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
-// --- 1. CSS CONFIG ---
-const staticStyles = `
-  /* Base Text Layer: Default is transparent so you see the PDF image underneath */
-  .react-pdf__Page__textContent { position: absolute; top: 0; left: 0; transform-origin: 0 0; line-height: 1; }
-  .react-pdf__Page__textContent span { 
-      position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; 
-      color: transparent; 
-  }
-  
-  /* Selection Color */
-  ::selection { background: rgba(0, 0, 255, 0.2); }
-  
-  /* Layout */
-  .pdf-page-container { margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); position: relative; }
-  .active-page { outline: 4px solid rgba(33, 150, 243, 0.3); }
-  
-  /* Modal Animation */
-  .modal-overlay { animation: fadeIn 0.2s ease-in-out; }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-`;
-
-// Worker Configuration
+// --- 1. WORKER CONFIGURATION ---
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+// --- 2. CSS STYLES ---
+const staticStyles = `
+  .react-pdf__Page__textContent {
+    position: absolute; top: 0; left: 0; transform-origin: 0 0; line-height: 1;
+  }
+  .react-pdf__Page__textContent span {
+    position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%;
+    color: transparent;
+  }
+  ::selection { background: rgba(0, 0, 255, 0.2); }
+  .pdf-page-container {
+    margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); position: relative;
+  }
+  .active-page { outline: 4px solid rgba(33, 150, 243, 0.3); }
+`;
 
 const PdfParserApp = () => {
   // --- STATE ---
   const [file, setFile] = useState(null);
   const [numPages, setNumPages] = useState(null);
   const [activePage, setActivePage] = useState(1);
-  const [scale, setScale] = useState(1.5); // Default larger zoom for clarity
-  
-  // Highlight State Map: { [pageNumber]: { start, end, color, type } }
-  // type can be 'text-color' (ink change) or 'background' (marker highlight)
+  const [scale, setScale] = useState(1.5);
   const [highlights, setHighlights] = useState({});
-  
-  // Extraction State
   const [pdfDocument, setPdfDocument] = useState(null);
-  const [extractedImages, setExtractedImages] = useState([]);
+  
+  // Changed: No list of images, just the active modal
   const [modalImage, setModalImage] = useState(null);
-  const [log, setLog] = useState("System Ready. Waiting for commands...");
+  
+  const [log, setLog] = useState("Waiting for WebSocket...");
+  const [clientId, setClientId] = useState("");
 
-  // Refs
-  const pageRefs = useRef({}); 
-  const observerRef = useRef(null);
+  // --- REFS ---
+  const pageRefs = useRef({});
+  const wsRef = useRef(null);
 
-  // --- 2. HELPER FUNCTIONS ---
-
-  // Robust Image Converter (Handles Grayscale, RGB, RGBA)
-  const convertRawDataToUrl = (imgObj) => {
+  // --- HELPER: IMAGE CONVERTER ---
+  const convertRawDataToUrl = useCallback((imgObj) => {
     if (!imgObj) return null;
 
-    // A. Bitmap (Fastest - Modern Browsers)
     if (imgObj.bitmap) {
-        const canvas = document.createElement('canvas');
-        canvas.width = imgObj.width; canvas.height = imgObj.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(imgObj.bitmap, 0, 0);
-        return canvas.toDataURL();
+      const canvas = document.createElement("canvas");
+      canvas.width = imgObj.width;
+      canvas.height = imgObj.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(imgObj.bitmap, 0, 0);
+      return canvas.toDataURL();
     }
 
     const { width, height, data } = imgObj;
     if (!width || !height || !data) return null;
 
-    // B. JPEG Direct (Fast)
-    if (data.length > 2 && data[0] === 0xFF && data[1] === 0xD8) {
-       return URL.createObjectURL(new Blob([data], { type: 'image/jpeg' }));
-    }
-
-    // C. Raw Pixel Parsing (Robust Fallback)
-    const canvas = document.createElement('canvas');
-    canvas.width = width; canvas.height = height;
-    const ctx = canvas.getContext('2d');
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
     const imageData = ctx.createImageData(width, height);
-    
     const size = width * height;
-    let components = 0;
-    if (data.length === size * 4) components = 4;      // RGBA
-    else if (data.length === size * 3) components = 3; // RGB
-    else if (data.length === size) components = 1;     // Grayscale
 
-    if (components === 0) return null;
+    let components = 0;
+    if (data.length === size * 4) components = 4;
+    else if (data.length === size * 3) components = 3;
+    else if (data.length === size) components = 1;
 
     let s = 0, d = 0;
     for (let i = 0; i < size; i++) {
-        if (components === 1) { 
-            const val = data[s++]; 
-            imageData.data[d++] = val; imageData.data[d++] = val; imageData.data[d++] = val; imageData.data[d++] = 255;
-        } else if (components === 3) { 
-            imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = 255;
-        } else if (components === 4) { 
-            imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++];
-        }
-    }
-    ctx.putImageData(imageData, 0, 0); 
-    return canvas.toDataURL();
-  };
-
-  // --- 3. MODULAR CONTROLLER API ---
-  // These functions are what your WebSocket would call
-  const api = {
-    // Navigation
-    navigate: ({ page }) => {
-      const pageNum = parseInt(page);
-      const el = pageRefs.current[pageNum];
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        setLog(`Executed: Navigated to Page ${pageNum}`);
+      if (components === 1) {
+        const val = data[s++];
+        imageData.data[d++] = val; imageData.data[d++] = val; imageData.data[d++] = val; imageData.data[d++] = 255;
+      } else if (components === 3) {
+        imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = 255;
       } else {
-        setLog(`Error: Page ${pageNum} not found.`);
-      }
-    },
-
-    // COMMAND 1: Change Text Color (The "Ink" Replacement)
-    color: ({ page, start, end, color = 'red' }) => {
-      const pageNum = parseInt(page);
-      setHighlights(prev => ({
-        ...prev,
-        [pageNum]: { start: parseInt(start), end: parseInt(end), color, type: 'text-color' }
-      }));
-      setLog(`Executed: Changed text color on P${pageNum} to ${color}`);
-      api.navigate({ page: pageNum });
-    },
-
-    // COMMAND 2: Standard Highlight (The "Marker" Background)
-    highlight: ({ page, start, end, color = 'yellow' }) => {
-      const pageNum = parseInt(page);
-      setHighlights(prev => ({
-        ...prev,
-        [pageNum]: { start: parseInt(start), end: parseInt(end), color, type: 'background' }
-      }));
-      setLog(`Executed: Highlighted P${pageNum} (Marker Style)`);
-      api.navigate({ page: pageNum });
-    },
-
-    clear: () => {
-        setHighlights({});
-        setLog(`Executed: Cleared all styles.`);
-    },
-
-    zoom: ({ value, delta }) => {
-      if (value) setScale(parseFloat(value));
-      else if (delta) setScale(s => Math.max(0.5, s + parseFloat(delta)));
-      setLog(`Executed: Zoom updated`);
-    },
-
-    extractImages: async ({ page, index }) => {
-      if (!pdfDocument) return setLog("Error: No PDF loaded.");
-      const pageNum = parseInt(page);
-      setLog(`Processing: Scanning Page ${pageNum}...`);
-      
-      try {
-        const pdfPage = await pdfDocument.getPage(pageNum);
-        const ops = await pdfPage.getOperatorList();
-        
-        const imageOps = [];
-        ops.fnArray.forEach((fn, idx) => {
-          if (fn === pdfjs.OPS.paintImageXObject || fn === pdfjs.OPS.paintInlineImageXObject) {
-            imageOps.push(ops.argsArray[idx][0]);
-          }
-        });
-
-        if (imageOps.length === 0) return setLog(`Result: No images on Page ${pageNum}`);
-
-        let targetOps = imageOps;
-        if (index !== undefined && index !== null) {
-            const i = parseInt(index);
-            if (imageOps[i]) targetOps = [imageOps[i]];
-            else return setLog(`Error: Image index ${i} out of bounds.`);
-        }
-
-        setLog(`Found ${targetOps.length} raw images. Decoding...`);
-        const images = [];
-        for (const imgName of targetOps) {
-          try {
-            const imgObj = await pdfPage.objs.get(imgName);
-            const url = convertRawDataToUrl(imgObj);
-            if (url) images.push(url);
-          } catch (e) { console.error(e); }
-        }
-        
-        setExtractedImages(images);
-        setLog(`Success: Extracted ${images.length} images.`);
-      } catch (err) {
-        setLog(`Critical Error: ${err.message}`);
+        imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++];
       }
     }
-  };
+    ctx.putImageData(imageData, 0, 0);
+    return canvas.toDataURL();
+  }, []);
 
-  // --- 4. COMMAND PARSER ---
-  const handleCommandString = (cmdString) => {
+  // --- API ACTIONS ---
+  const navigate = useCallback(({ page }) => {
+    const pageNum = parseInt(page);
+    const el = pageRefs.current[pageNum];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      setLog(`Mapsd to page ${pageNum}`);
+      setActivePage(pageNum);
+    }
+  }, []);
+
+  const color = useCallback(({ page, start, end, color = "red" }) => {
+    const pageNum = parseInt(page);
+    setHighlights((prev) => ({
+      ...prev,
+      [pageNum]: { start, end, color, type: "text-color" },
+    }));
+    navigate({ page: pageNum });
+  }, [navigate]);
+
+  const highlight = useCallback(({ page, start, end, color = "yellow" }) => {
+    const pageNum = parseInt(page);
+    setHighlights((prev) => ({
+      ...prev,
+      [pageNum]: { start, end, color, type: "background" },
+    }));
+    navigate({ page: pageNum });
+  }, [navigate]);
+
+  const zoom = useCallback(({ value, delta }) => {
+    if (value) setScale(parseFloat(value));
+    if (delta) setScale((prev) => Math.max(0.5, prev + parseFloat(delta)));
+  }, []);
+
+  const clear = useCallback(() => {
+    setHighlights({});
+    setModalImage(null); // Clear modal too
+  }, []);
+
+  // --- NEW: INSPECT IMAGE FUNCTION ---
+  const inspectImage = useCallback(async ({ page, imageInd }) => {
+    if (!pdfDocument) return;
+    const pageNum = parseInt(page);
+    const index = parseInt(imageInd);
+
+    setLog(`Inspecting Image #${index} on Page ${pageNum}...`);
+
     try {
-      if (!cmdString) return;
-      const parts = cmdString.split(';');
-      const command = parts[0].trim().toLowerCase(); 
-      const params = {};
-      parts.slice(1).forEach(part => {
-        const [key, val] = part.split('=');
-        if (key && val) params[key.trim()] = val.trim();
-      });
-
-      switch (command) {
-        case 'navigate': api.navigate(params); break;
-        case 'color': api.color(params); break;         // NEW: Change Ink Color
-        case 'highlight': api.highlight(params); break; // OLD: Highlight Background
-        case 'clear': api.clear(); break;
-        case 'zoom': api.zoom(params); break;
-        case 'image': case 'extract': api.extractImages(params); break;
-        default: setLog(`Unknown Command: ${command}`);
+      const pdfPage = await pdfDocument.getPage(pageNum);
+      const ops = await pdfPage.getOperatorList();
+      
+      // 1. Collect all image references on this page
+      const imageRefs = [];
+      for (let i = 0; i < ops.fnArray.length; i++) {
+        if (
+          ops.fnArray[i] === pdfjs.OPS.paintImageXObject ||
+          ops.fnArray[i] === pdfjs.OPS.paintInlineImageXObject
+        ) {
+          imageRefs.push(ops.argsArray[i][0]);
+        }
       }
-    } catch (e) { setLog(`Parse Error: ${e.message}`); }
-  };
 
-  // --- 5. REACT HANDLERS ---
-  const onFileChange = (e) => setFile(e.target.files[0]);
-  const onDocumentLoadSuccess = (pdf) => { setNumPages(pdf.numPages); setPdfDocument(pdf); };
-  const makeTextRenderer = useCallback((textItem) => textItem.str, []);
+      // 2. Validate Index
+      if (imageRefs.length === 0) {
+        setLog(`No images found on page ${pageNum}`);
+        return;
+      }
+      if (index < 0 || index >= imageRefs.length) {
+        setLog(`Image index ${index} out of bounds (Found ${imageRefs.length} images)`);
+        return;
+      }
 
-  // Scroll Observer
+      // 3. Extract Specific Image
+      const imgName = imageRefs[index];
+      const imgObj = await pdfPage.objs.get(imgName);
+      const url = convertRawDataToUrl(imgObj);
+
+      // 4. Show Modal
+      if (url) {
+        setModalImage(url);
+        setLog(`Displaying Image #${index}`);
+      } else {
+        setLog(`Failed to decode Image #${index}`);
+      }
+
+    } catch (e) {
+      console.error("Inspection error:", e);
+      setLog("Error inspecting image");
+    }
+  }, [pdfDocument, convertRawDataToUrl]);
+
+  // --- WEBSOCKET SETUP ---
+  useEffect(() => {
+    if (wsRef.current) return;
+
+    const id = "client_" + Math.random().toString(36).substring(2, 10);
+    setClientId(id);
+
+    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${id}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => setLog(`Connected as ${id}`);
+    
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        const { type, ...params } = message; 
+        const data = message.data || params; 
+
+        switch (type) {
+          case "navigate": navigate(data); break;
+          case "color": color(data); break;
+          case "highlight": highlight(data); break;
+          case "zoom": zoom(data); break;
+          // REPLACED EXTRACT WITH INSPECT
+          case "inspect": inspectImage(data); break; 
+          case "clear": clear(); break;
+          default: console.log("Unknown command:", type);
+        }
+      } catch (e) {
+        console.error("WS Parse Error", e);
+      }
+    };
+
+    ws.onclose = () => setLog("Disconnected from server");
+
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [navigate, color, highlight, zoom, inspectImage, clear]);
+
+  // --- SCROLL OBSERVER ---
   useEffect(() => {
     if (!numPages) return;
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) setActivePage(parseInt(entry.target.dataset.pageNumber));
-      });
-    }, { threshold: 0.5 });
-    Object.values(pageRefs.current).forEach(el => el && observer.observe(el));
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActivePage(parseInt(entry.target.getAttribute("data-page-number")));
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+    Object.values(pageRefs.current).forEach((el) => {
+      if (el) observer.observe(el);
+    });
     return () => observer.disconnect();
   }, [numPages]);
 
+  // --- RENDER HELPERS ---
+  const onDocumentLoadSuccess = (pdf) => {
+    setNumPages(pdf.numPages);
+    setPdfDocument(pdf);
+  };
+
+  const textRenderer = useCallback((textItem) => textItem.str, []);
+
+  // --- RENDER ---
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'monospace' }}>
+    <div style={{ display: "flex", height: "100vh", fontFamily: "sans-serif" }}>
       
-      {/* --- DYNAMIC CSS GENERATOR --- */}
+      {/* Styles */}
       <style>{`
         ${staticStyles}
         ${Object.entries(highlights).map(([page, cfg]) => {
-           // MODE 1: Text Color Change ("Ink")
-           // We force the text layer to be Opaque (1) and set the color.
-           // This covers the black pixels of the PDF image underneath.
-           if (cfg.type === 'text-color') {
-             return `
-               #page-wrapper-${page} .react-pdf__Page__textContent span:nth-child(n + ${cfg.start}):nth-child(-n + ${cfg.end}) {
-                  color: ${cfg.color} !important;
-                  opacity: 1 !important; 
-                  background-color: transparent !important;
-                  text-shadow: 0 0 0.5px ${cfg.color}; /* Bold it slightly to fully cover the black underneath */
-               }
-             `;
+           const selector = `#page-wrapper-${page} .react-pdf__Page__textContent span:nth-child(n+${cfg.start}):nth-child(-n+${cfg.end})`;
+           if (cfg.type === "text-color") {
+             return `${selector} { color: ${cfg.color} !important; opacity: 1 !important; background: transparent !important; }`;
+           } else {
+             return `${selector} { background-color: ${cfg.color}; opacity: 0.4 !important; color: transparent; }`;
            }
-           // MODE 2: Standard Highlight ("Marker")
-           else {
-             return `
-               #page-wrapper-${page} .react-pdf__Page__textContent span:nth-child(n + ${cfg.start}):nth-child(-n + ${cfg.end}) {
-                  background-color: ${cfg.color};
-                  opacity: 0.4 !important;
-                  color: transparent;
-               }
-             `;
-           }
-        }).join('')}
+        }).join("")}
       `}</style>
 
-      {/* --- LEFT PANEL: TERMINAL --- */}
-      <div style={{ width: '300px', background: '#222', color: '#0f0', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-        <h3>PDF Command Terminal</h3>
+      {/* --- LEFT SIDEBAR --- */}
+      <div style={{ width: 300, background: "#1e1e1e", color: "#fff", padding: 20, display: "flex", flexDirection: "column", borderRight: "1px solid #333" }}>
+        <h3>PDF Controller</h3>
         
-        <div style={{marginBottom: 20, borderBottom: '1px solid #444', paddingBottom: 10}}>
-           <label>1. Load PDF:</label>
-           <input type="file" onChange={onFileChange} style={{color: 'white', marginTop: 5}} />
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 12, color: "#888" }}>DOCUMENT</label>
+          <input 
+            type="file" 
+            onChange={(e) => setFile(e.target.files[0])} 
+            style={{ width: "100%", marginTop: 5, fontSize: 12 }} 
+          />
         </div>
 
-        <label>2. Command Input:</label>
-        <textarea 
-          id="cmdInput" 
-          style={{background: '#000', color: '#0f0', border: '1px solid #0f0', height: '80px', fontFamily: 'monospace', marginBottom: 10}}
-          placeholder="e.g. color;page=1;start=10;end=20;color=red"
-        ></textarea>
-        <button 
-          onClick={() => handleCommandString(document.getElementById('cmdInput').value)}
-          style={{background: '#0f0', color: '#000', border: 'none', padding: '10px', cursor: 'pointer', fontWeight: 'bold'}}
-        >
-          EXECUTE COMMAND
-        </button>
-
-        {/* Quick Tests */}
-        <div style={{marginTop: 20, display: 'flex', flexDirection: 'column', gap: 5}}>
-          <small style={{color:'white'}}>Quick Tests:</small>
-          <button onClick={() => handleCommandString("color;page=1;start=0;end=50;color=red")}>
-             Test: Make Text Red
-          </button>
-          <button onClick={() => handleCommandString("color;page=1;start=50;end=100;color=blue")}>
-             Test: Make Text Blue
-          </button>
-          <button onClick={() => handleCommandString("highlight;page=1;start=10;end=30;color=yellow")}>
-             Test: Highlight Yellow
-          </button>
-          <button onClick={() => handleCommandString("extract;page=1")}>Extract Images P1</button>
-          <button onClick={() => handleCommandString("navigate;page=1")}>Go Page 1</button>
-          <button onClick={() => handleCommandString("clear")}>Clear All</button>
+        <div style={{ marginBottom: 20, fontSize: 12, color: "#aaa" }}>
+          Status: <span style={{ color: wsRef.current ? "#0f0" : "#f00" }}>●</span>
+          <br />
+          ID: {clientId}
         </div>
 
-        <div style={{marginTop: 'auto', borderTop: '1px solid #444', paddingTop: 10}}>
-          <small>System Log:</small>
-          <div style={{color: 'white', fontSize: '12px', marginTop: 5}}>{log}</div>
+        <div style={{ flex: 1, background: "#000", padding: 10, borderRadius: 4, overflowY: "auto", fontFamily: "monospace", fontSize: 11 }}>
+          <div style={{ color: "#666", marginBottom: 5 }}>LOGS:</div>
+          <div style={{ color: "#0f0" }}>{log}</div>
         </div>
       </div>
 
-      {/* --- RIGHT PANEL: VIEWER --- */}
-      <div style={{ flex: 1, background: '#555', overflowY: 'auto', padding: '20px', position: 'relative' }}>
-         
-         {/* Extracted Images Overlay */}
-         {extractedImages.length > 0 && (
-            <div style={{position: 'fixed', right: 20, top: 20, width: 220, background: 'white', padding: 10, zIndex: 100, borderRadius: 8, boxShadow: '0 5px 15px rgba(0,0,0,0.5)'}}>
-               <strong>Extracted Data ({extractedImages.length})</strong>
-               <div style={{marginTop: 10, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: '50vh', overflow: 'auto'}}>
-                  {extractedImages.map((src, i) => (
-                    <img key={i} src={src} onClick={() => setModalImage(src)} style={{width: '100%', border: '1px solid #eee', cursor: 'pointer'}} />
-                  ))}
-               </div>
-               <button onClick={() => setExtractedImages([])} style={{marginTop: 5, width: '100%', padding: 5}}>Clear</button>
-            </div>
-         )}
-
-         {/* Fullscreen Image Modal */}
-         {modalImage && (
-            <div className="modal-overlay" style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.9)', zIndex:200, display:'flex', justifyContent:'center', alignItems:'center'}}>
-                <img src={modalImage} style={{maxHeight:'90vh', maxWidth:'90vw'}} />
-                <button onClick={() => setModalImage(null)} style={{position:'absolute', top: 20, right: 20, padding: '10px 20px', background: 'red', color: 'white', border: 'none'}}>Close</button>
-            </div>
-         )}
-
-         {/* PDF Document */}
-         {file ? (
+      {/* --- MAIN PDF VIEW --- */}
+      <div style={{ flex: 1, overflowY: "auto", background: "#555", padding: 20, display: "flex", justifyContent: "center" }}>
+        {file ? (
+          <div style={{ maxWidth: 900, width: "100%" }}>
             <Document file={file} onLoadSuccess={onDocumentLoadSuccess}>
-               {Array.from(new Array(numPages), (_, i) => {
-                 const pageNum = i + 1;
-                 return (
-                   <div 
-                     key={pageNum}
-                     id={`page-wrapper-${pageNum}`}
-                     data-page-number={pageNum}
-                     ref={el => pageRefs.current[pageNum] = el}
-                     className={`pdf-page-container ${activePage === pageNum ? 'active-page' : ''}`}
-                     style={{display: 'flex', justifyContent: 'center'}}
-                   >
-                      <span style={{position:'absolute', left: -30, color: 'white', fontWeight: 'bold'}}>{pageNum}</span>
-                      <Page 
-                        pageNumber={pageNum} 
-                        scale={scale} 
-                        customTextRenderer={makeTextRenderer}
-                        renderTextLayer={true} 
-                        renderAnnotationLayer={false} 
-                      />
-                   </div>
-                 );
-               })}
+              {Array.from(new Array(numPages), (_, i) => {
+                const pageNum = i + 1;
+                return (
+                  <div
+                    key={pageNum}
+                    id={`page-wrapper-${pageNum}`}
+                    data-page-number={pageNum}
+                    ref={(el) => (pageRefs.current[pageNum] = el)}
+                    className={`pdf-page-container ${activePage === pageNum ? "active-page" : ""}`}
+                  >
+                    <div style={{ position: "absolute", left: -40, top: 0, color: "#fff", fontWeight: "bold" }}>
+                      {pageNum}
+                    </div>
+                    
+                    <Page
+                      pageNumber={pageNum}
+                      scale={scale}
+                      renderTextLayer={true}
+                      renderAnnotationLayer={false}
+                      customTextRenderer={textRenderer}
+                    />
+                  </div>
+                );
+              })}
             </Document>
-         ) : <div style={{color: 'white', textAlign: 'center', marginTop: 100}}>Waiting for PDF...</div>}
+          </div>
+        ) : (
+          <div style={{ color: "#ccc", marginTop: 100 }}>
+            Upload a PDF to begin session
+          </div>
+        )}
       </div>
+
+      {/* --- MODAL (INSPECT MODE) --- */}
+      {modalImage && (
+        <div 
+          onClick={() => setModalImage(null)}
+          style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.9)", zIndex: 999, display: "flex", justifyContent: "center", alignItems: "center" }}
+        >
+          <img src={modalImage} style={{ maxWidth: "90%", maxHeight: "90%", borderRadius: "4px", boxShadow: "0 0 20px rgba(0,0,0,0.5)" }} alt="Inspected Content" />
+          <div style={{ position: "absolute", bottom: 20, color: "white", background: "rgba(0,0,0,0.7)", padding: "5px 10px", borderRadius: "4px" }}>
+            Click anywhere to close
+          </div>
+        </div>
+      )}
     </div>
   );
 };

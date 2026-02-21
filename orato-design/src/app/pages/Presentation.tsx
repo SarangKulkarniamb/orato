@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router-dom";
 import { Mic, MicOff, ArrowLeft, Maximize2, Upload, Wifi, WifiOff, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Document, Page, pdfjs } from "react-pdf";
+import useAuthStore from "../store/authStore";
 
 // --- 1. WORKER CONFIG ---
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -45,8 +46,10 @@ export function Presentation() {
 
   // --- AUTH CHECK ---
   useEffect(() => {
-    const userStr = localStorage.getItem("orato_user");
-    if (!userStr) navigate("/auth");
+    const token = useAuthStore.getState().token || localStorage.getItem("token");
+    if (!token) {
+      navigate("/auth");
+    }
   }, [navigate]);
 
   // --- HELPER: IMAGE CONVERTER ---

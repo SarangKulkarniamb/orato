@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { Plus, FileText, Play, LogOut, Upload } from "lucide-react";
 import { motion } from "motion/react";
+import useAuthStore from "../store/authStore";
 
 interface Document {
   id: string;
@@ -13,18 +14,25 @@ interface Document {
 export function Library() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [user, setUser] = useState<{ email: string; id: string } | null>(null);
+  // read token + user from global store
+  const token = useAuthStore((state) => state.token);
+  const storedUser = useAuthStore((state) => state.user);
+
+  const [user, setUser] = useState<{ email: string; id: string } | null>(storedUser);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [hoveredDoc, setHoveredDoc] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if user is logged in
-    const userStr = localStorage.getItem("orato_user");
-    if (!userStr) {
+    if (!token) {
+      // ProtectedRoute should have already redirected, but double-check
       navigate("/auth");
       return;
     }
-    setUser(JSON.parse(userStr));
+
+    // if we don't yet have a local user copy, grab it from store
+    if (!user && storedUser) {
+      setUser(storedUser);
+    }
 
     // Load mock documents
     const mockDocs: Document[] = [
@@ -54,10 +62,10 @@ export function Library() {
       },
     ];
     setDocuments(mockDocs);
-  }, [navigate]);
+  }, [navigate, token, storedUser, user]);
 
   const handleLogout = () => {
-    localStorage.removeItem("orato_user");
+    useAuthStore.getState().logout();
     navigate("/");
   };
 

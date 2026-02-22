@@ -1,9 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { Mic, Zap, Shield, Sparkles, ArrowRight, CheckCircle2, Play } from "lucide-react";
 import { motion } from "motion/react";
-
+import useAuthStore from "../store/authStore";
 export function Landing() {
   const navigate = useNavigate();
+
+  const storedUser =  useAuthStore((state) => state.user);
 
   const features = [
     {
@@ -50,7 +52,7 @@ export function Landing() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            Sign In
+            { storedUser ? "Dashboard" : "Login" }
           </motion.button>
         </div>
       </header>

@@ -2,8 +2,6 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pypdf import PdfReader
 
-
-
 def clean_text(text):
     if not text:
         return None

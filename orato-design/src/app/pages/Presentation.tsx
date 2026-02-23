@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Mic, MicOff, ArrowLeft, Maximize2, Wifi, WifiOff, FileText, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Mic, MicOff, ArrowLeft, Maximize2, Wifi, WifiOff, FileText, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion } from "framer-motion";
 import { Document, Page, pdfjs } from "react-pdf";
 import useAuthStore from "../store/authStore";
 import api from "../api/api";
@@ -40,10 +40,18 @@ export function Presentation() {
   const [isConnected, setIsConnected] = useState(false);
   const [clientId, setClientId] = useState("");
   
+  // --- REFS ---
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  
   const wsRef = useRef<WebSocket | null>(null);
+  
+  // STT Streaming Refs
+  const sttWsRef = useRef<WebSocket | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
 
   useEffect(() => {
     const token = useAuthStore.getState().token || localStorage.getItem("token");
@@ -144,16 +152,23 @@ export function Presentation() {
     navigateToPage({ page: pageNum });
   }, [navigateToPage]);
 
+  // =====================================================================
+  // WEBSOCKET 1: CONTROL (Navigation, Zoom, etc.)
+  // =====================================================================
   useEffect(() => {
     if (wsRef.current || !id) return;
     const token = useAuthStore.getState().token || localStorage.getItem("token");
     const user = useAuthStore.getState().user;
+    
     const cId = user?.id && id ? `${user.id}_${id}` : `client_${Math.random().toString(36).substring(2,6)}`;
     setClientId(cId);
+    
     const apiBase: string = (import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000";
     const wsBase = apiBase.replace(/^http/, apiBase.startsWith("https") ? "wss" : "ws");
+    
     const ws = new WebSocket(`${wsBase}/ws/${cId}?token=${token}`);
     wsRef.current = ws;
+    
     ws.onopen = () => setIsConnected(true);
     ws.onclose = () => setIsConnected(false);
     ws.onmessage = (event) => {
@@ -167,12 +182,103 @@ export function Presentation() {
           case "highlight": highlightAction(data); break;
           case "inspect": inspectImage(data); break;
           case "clear": setHighlights({}); setTranscript("Cleared all"); break;
+          // You can keep this generic speech listener in case you send alerts via the control WS
           case "speech": setTranscript(typeof data === "string" ? data : data.text || transcript); break;
         }
       } catch (e) {}
     };
     return () => { ws.close(); wsRef.current = null; };
-  }, [id, navigateToPage, scale, colorAction, highlightAction, inspectImage, transcript]);
+  }, [id, navigateToPage, scale, colorAction, highlightAction, inspectImage]);
+
+  // =====================================================================
+  // WEBSOCKET 2: GOOGLE STT AUDIO STREAM (One-Way to Server)
+  // =====================================================================
+  useEffect(() => {
+    if (!clientId) return;
+    
+    const apiBase: string = (import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000";
+    const wsBase = apiBase.replace(/^http/, apiBase.startsWith("https") ? "wss" : "ws");
+    
+    const sttWs = new WebSocket(`${wsBase}/ws/stt/${clientId}`);
+    sttWsRef.current = sttWs;
+
+    sttWs.onopen = () => console.log("STT WebSocket Connected");
+    sttWs.onclose = () => console.log("STT WebSocket Disconnected");
+    
+    // Server no longer sends text back, so we do nothing here
+    sttWs.onmessage = () => {};
+
+    return () => {
+      sttWs.close();
+      sttWsRef.current = null;
+    };
+  }, [clientId]);
+
+  // =====================================================================
+  // MICROPHONE CAPTURE & PROCESSING
+  // =====================================================================
+  useEffect(() => {
+    const startRecording = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamRef.current = stream;
+
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const audioContext = new AudioContextClass({ sampleRate: 16000 });
+        audioContextRef.current = audioContext;
+
+        const source = audioContext.createMediaStreamSource(stream);
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
+
+        processor.onaudioprocess = (e) => {
+          const inputData = e.inputBuffer.getChannelData(0);
+          
+          const pcmData = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) {
+            pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+          }
+
+          if (sttWsRef.current?.readyState === WebSocket.OPEN) {
+            sttWsRef.current.send(pcmData.buffer);
+          }
+        };
+
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+        
+        setTranscript("Listening...");
+
+      } catch (err) {
+        console.error("Microphone access denied or error:", err);
+        setIsListening(false);
+        setTranscript("Error: Microphone access denied");
+      }
+    };
+
+    const stopRecording = () => {
+      if (processorRef.current && audioContextRef.current) {
+        processorRef.current.disconnect();
+        audioContextRef.current.close().catch(console.error);
+        processorRef.current = null;
+        audioContextRef.current = null;
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+
+    if (isListening) {
+      startRecording();
+    } else {
+      stopRecording();
+      setTranscript(prev => prev === "Listening..." ? "System Ready" : prev);
+    }
+
+    return () => stopRecording();
+  }, [isListening]);
+
 
   useEffect(() => {
     if (!numPages) return;
@@ -193,28 +299,20 @@ export function Presentation() {
 
   useEffect(() => {
     if (!pdfDocument) return;
-
     const recalcBaseScale = async () => {
       const page = await pdfDocument.getPage(1);
       const viewport = page.getViewport({ scale: 1 });
-
       const container = scrollContainerRef.current;
       if (!container) return;
-
-      // px-8 padding = 32px left + 32px right
       const usableWidth = container.clientWidth - 950;
-
       const newBaseScale = usableWidth / viewport.width;
-
       setBaseScale(newBaseScale);
     };
-
     recalcBaseScale();
-
     window.addEventListener("resize", recalcBaseScale);
     return () => window.removeEventListener("resize", recalcBaseScale);
-
   }, [pdfDocument, sidebarCollapsed]);
+
   if (isLoading) return (
     <div className="h-screen bg-slate-950 flex items-center justify-center">
       <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
@@ -260,7 +358,6 @@ export function Presentation() {
                 <button onClick={() => setZoomLevel(z => Math.max(z - 0.1, 0.4))} className="flex items-center justify-center gap-2 p-3 bg-[#2a2a2a] hover:bg-[#333] rounded-xl text-xs"><ZoomOut size={14}/> Out</button>
               </div>
 
-              {/* MIC & TRANSCRIPT MOVED TO SIDEBAR */}
               <div className="w-full mt-auto pt-6 space-y-4">
                 <div className="bg-black/30 border border-[#2a2a2a] rounded-2xl p-4 flex flex-col items-center gap-4">
                    <button 
@@ -271,7 +368,7 @@ export function Presentation() {
                    </button>
                    <div className="text-center w-full">
                       <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">AI Session</p>
-                      <p className="text-white text-xs font-medium leading-relaxed bg-[#161616] p-3 rounded-lg border border-[#2a2a2a] min-h-[60px] flex items-center justify-center">
+                      <p className="text-white text-xs font-medium leading-relaxed bg-[#161616] p-3 rounded-lg border border-[#2a2a2a] min-h-[60px] flex items-center justify-center text-center">
                         {transcript}
                       </p>
                    </div>
@@ -287,7 +384,7 @@ export function Presentation() {
                 </button>
                 <div className={`w-3 h-3 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
                 <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 3))}><ZoomIn size={20}/></button>
-                <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 3))}><ZoomOut size={20}/></button>
+                <button onClick={() => setZoomLevel(z => Math.max(z - 0.1, 0.4))}><ZoomOut size={20}/></button>
              </div>
           )}
         </div>

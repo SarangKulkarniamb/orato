@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
 // --- 1. WORKER CONFIGURATION ---
@@ -6,290 +6,150 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 
 // --- 2. CSS STYLES ---
 const staticStyles = `
-  .react-pdf__Page__textContent {
-    position: absolute; top: 0; left: 0; transform-origin: 0 0; line-height: 1;
-  }
-  .react-pdf__Page__textContent span {
-    position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%;
-    color: transparent;
-  }
-  ::selection { background: rgba(0, 0, 255, 0.2); }
   .pdf-page-container {
-    margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); position: relative;
+    margin-bottom: 20px; 
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3); 
+    position: relative; 
+    overflow: hidden; 
+    transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1); 
+    background: white;
   }
-  .active-page { outline: 4px solid rgba(33, 150, 243, 0.3); }
+  .active-page { outline: 4px solid rgba(33, 150, 243, 0.5); }
+  
+  .test-btn {
+    background: #2563eb; color: white; border: none; padding: 10px; 
+    border-radius: 6px; cursor: pointer; margin-bottom: 10px;
+    font-weight: 600; text-align: left; transition: background 0.2s;
+  }
+  .test-btn:hover { background: #1d4ed8; }
+  .test-btn.clear { background: #dc2626; }
+  .test-btn.clear:hover { background: #b91c1c; }
 `;
 
 const PdfParserApp = () => {
-  // --- STATE ---
   const [file, setFile] = useState(null);
   const [numPages, setNumPages] = useState(null);
   const [activePage, setActivePage] = useState(1);
   const [scale, setScale] = useState(1.5);
-  const [highlights, setHighlights] = useState({});
-  const [pdfDocument, setPdfDocument] = useState(null);
   
-  // Changed: No list of images, just the active modal
-  const [modalImage, setModalImage] = useState(null);
+  // Format: { 1: { bbox: [left, top, width, height], type: "highlight", color: "yellow" } }
+  const [overlays, setOverlays] = useState({});
+  const [zoomTarget, setZoomTarget] = useState(null); 
   
-  const [log, setLog] = useState("Waiting for WebSocket...");
-  const [clientId, setClientId] = useState("");
-
-  // --- REFS ---
+  const [log, setLog] = useState("Ready for manual testing...");
   const pageRefs = useRef({});
-  const wsRef = useRef(null);
-
-  // --- HELPER: IMAGE CONVERTER ---
-  const convertRawDataToUrl = useCallback((imgObj) => {
-    if (!imgObj) return null;
-
-    if (imgObj.bitmap) {
-      const canvas = document.createElement("canvas");
-      canvas.width = imgObj.width;
-      canvas.height = imgObj.height;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(imgObj.bitmap, 0, 0);
-      return canvas.toDataURL();
-    }
-
-    const { width, height, data } = imgObj;
-    if (!width || !height || !data) return null;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    const imageData = ctx.createImageData(width, height);
-    const size = width * height;
-
-    let components = 0;
-    if (data.length === size * 4) components = 4;
-    else if (data.length === size * 3) components = 3;
-    else if (data.length === size) components = 1;
-
-    let s = 0, d = 0;
-    for (let i = 0; i < size; i++) {
-      if (components === 1) {
-        const val = data[s++];
-        imageData.data[d++] = val; imageData.data[d++] = val; imageData.data[d++] = val; imageData.data[d++] = 255;
-      } else if (components === 3) {
-        imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = 255;
-      } else {
-        imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++]; imageData.data[d++] = data[s++];
-      }
-    }
-    ctx.putImageData(imageData, 0, 0);
-    return canvas.toDataURL();
-  }, []);
 
   // --- API ACTIONS ---
   const navigate = useCallback(({ page }) => {
     const pageNum = parseInt(page);
     const el = pageRefs.current[pageNum];
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      setLog(`Mapsd to page ${pageNum}`);
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
       setActivePage(pageNum);
     }
   }, []);
 
-  const color = useCallback(({ page, start, end, color = "red" }) => {
+  const highlight = useCallback(({ page, bbox, color = "rgba(255, 255, 0, 0.4)" }) => {
     const pageNum = parseInt(page);
-    setHighlights((prev) => ({
+    setOverlays((prev) => ({
       ...prev,
-      [pageNum]: { start, end, color, type: "text-color" },
+      [pageNum]: { bbox, color, type: "highlight" },
     }));
     navigate({ page: pageNum });
+    setLog(`Highlighted BBOX on Page ${pageNum}`);
   }, [navigate]);
 
-  const highlight = useCallback(({ page, start, end, color = "yellow" }) => {
+  const ink = useCallback(({ page, bbox, color = "#ef4444" }) => {
     const pageNum = parseInt(page);
-    setHighlights((prev) => ({
+    setOverlays((prev) => ({
       ...prev,
-      [pageNum]: { start, end, color, type: "background" },
+      [pageNum]: { bbox, color, type: "ink" },
     }));
     navigate({ page: pageNum });
+    setLog(`Drawn ink box on Page ${pageNum}`);
   }, [navigate]);
 
-  const zoom = useCallback(({ value, delta }) => {
-    if (value) setScale(parseFloat(value));
-    if (delta) setScale((prev) => Math.max(0.5, prev + parseFloat(delta)));
-  }, []);
+  // FIXED ZOOM CALCULATION FOR [left, top, width, height]
+  const smartZoom = useCallback(({ page, bbox }) => {
+    const pageNum = parseInt(page);
+    
+    // Center X = left + (width / 2)
+    const centerX = (bbox[0] + (bbox[2] / 2)) * 100;
+    // Center Y = top + (height / 2)
+    const centerY = (bbox[1] + (bbox[3] / 2)) * 100;
+
+    setZoomTarget({ page: pageNum, origin: `${centerX}% ${centerY}%` });
+    navigate({ page: pageNum });
+    setLog(`Smart Zoomed to (${centerX.toFixed(1)}%, ${centerY.toFixed(1)}%) on Page ${pageNum}`);
+  }, [navigate]);
 
   const clear = useCallback(() => {
-    setHighlights({});
-    setModalImage(null); // Clear modal too
+    setOverlays({});
+    setZoomTarget(null);
+    setLog("Cleared all overlays and zooms.");
   }, []);
 
-  // --- NEW: INSPECT IMAGE FUNCTION ---
-  const inspectImage = useCallback(async ({ page, imageInd }) => {
-    if (!pdfDocument) return;
-    const pageNum = parseInt(page);
-    const index = parseInt(imageInd);
-
-    setLog(`Inspecting Image #${index} on Page ${pageNum}...`);
-
-    try {
-      const pdfPage = await pdfDocument.getPage(pageNum);
-      const ops = await pdfPage.getOperatorList();
-      
-      // 1. Collect all image references on this page
-      const imageRefs = [];
-      for (let i = 0; i < ops.fnArray.length; i++) {
-        if (
-          ops.fnArray[i] === pdfjs.OPS.paintImageXObject ||
-          ops.fnArray[i] === pdfjs.OPS.paintInlineImageXObject
-        ) {
-          imageRefs.push(ops.argsArray[i][0]);
-        }
-      }
-
-      // 2. Validate Index
-      if (imageRefs.length === 0) {
-        setLog(`No images found on page ${pageNum}`);
-        return;
-      }
-      if (index < 0 || index >= imageRefs.length) {
-        setLog(`Image index ${index} out of bounds (Found ${imageRefs.length} images)`);
-        return;
-      }
-
-      // 3. Extract Specific Image
-      const imgName = imageRefs[index];
-      const imgObj = await pdfPage.objs.get(imgName);
-      const url = convertRawDataToUrl(imgObj);
-
-      // 4. Show Modal
-      if (url) {
-        setModalImage(url);
-        setLog(`Displaying Image #${index}`);
-      } else {
-        setLog(`Failed to decode Image #${index}`);
-      }
-
-    } catch (e) {
-      console.error("Inspection error:", e);
-      setLog("Error inspecting image");
-    }
-  }, [pdfDocument, convertRawDataToUrl]);
-
-  // --- WEBSOCKET SETUP ---
-  useEffect(() => {
-    if (wsRef.current) return;
-
-    const id = "client_" + Math.random().toString(36).substring(2, 10);
-    setClientId(id);
-
-    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${id}`);
-    wsRef.current = ws;
-
-    ws.onopen = () => setLog(`Connected as ${id}`);
-    
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        const { type, ...params } = message; 
-        const data = message.data || params; 
-
-        switch (type) {
-          case "navigate": navigate(data); break;
-          case "color": color(data); break;
-          case "highlight": highlight(data); break;
-          case "zoom": zoom(data); break;
-          // REPLACED EXTRACT WITH INSPECT
-          case "inspect": inspectImage(data); break; 
-          case "clear": clear(); break;
-          default: console.log("Unknown command:", type);
-        }
-      } catch (e) {
-        console.error("WS Parse Error", e);
-      }
-    };
-
-    ws.onclose = () => setLog("Disconnected from server");
-
-    return () => {
-      ws.close();
-      wsRef.current = null;
-    };
-  }, [navigate, color, highlight, zoom, inspectImage, clear]);
-
-  // --- SCROLL OBSERVER ---
-  useEffect(() => {
-    if (!numPages) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setActivePage(parseInt(entry.target.getAttribute("data-page-number")));
-          }
-        });
-      },
-      { threshold: 0.5 }
-    );
-    Object.values(pageRefs.current).forEach((el) => {
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, [numPages]);
-
-  // --- RENDER HELPERS ---
   const onDocumentLoadSuccess = (pdf) => {
     setNumPages(pdf.numPages);
-    setPdfDocument(pdf);
   };
 
-  const textRenderer = useCallback((textItem) => textItem.str, []);
-
-  // --- RENDER ---
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: "sans-serif" }}>
-      
-      {/* Styles */}
-      <style>{`
-        ${staticStyles}
-        ${Object.entries(highlights).map(([page, cfg]) => {
-           const selector = `#page-wrapper-${page} .react-pdf__Page__textContent span:nth-child(n+${cfg.start}):nth-child(-n+${cfg.end})`;
-           if (cfg.type === "text-color") {
-             return `${selector} { color: ${cfg.color} !important; opacity: 1 !important; background: transparent !important; }`;
-           } else {
-             return `${selector} { background-color: ${cfg.color}; opacity: 0.4 !important; color: transparent; }`;
-           }
-        }).join("")}
-      `}</style>
+      <style>{staticStyles}</style>
 
-      {/* --- LEFT SIDEBAR --- */}
+      {/* --- LEFT SIDEBAR (TEST PANEL) --- */}
       <div style={{ width: 300, background: "#1e1e1e", color: "#fff", padding: 20, display: "flex", flexDirection: "column", borderRight: "1px solid #333" }}>
-        <h3>PDF Controller</h3>
+        <h3>Test Panel</h3>
+        <input type="file" onChange={(e) => setFile(e.target.files[0])} style={{ margin: "20px 0", color: "#aaa" }} />
         
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 12, color: "#888" }}>DOCUMENT</label>
-          <input 
-            type="file" 
-            onChange={(e) => setFile(e.target.files[0])} 
-            style={{ width: "100%", marginTop: 5, fontSize: 12 }} 
-          />
+        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+          <small style={{ color: "#888", marginBottom: 10, display: "block" }}>MANUAL BBOX CONTROLS</small>
+          
+          <button 
+            className="test-btn" 
+            onClick={() => highlight({ page: 1, bbox: [0.125, 0.1175, 0.625, 0.027] })}
+          >
+            1. Highlight Area
+            <div style={{fontSize: 10, fontWeight: "normal", opacity: 0.8}}>[left, top, width, height]</div>
+          </button>
+
+          <button 
+            className="test-btn" 
+            onClick={() => ink({ page: 1, bbox: [0.2885, 0.2233, 0.1344, 0.4667] })}
+          >
+            2. Box Diagram
+            <div style={{fontSize: 10, fontWeight: "normal", opacity: 0.8}}>[left, top, width, height]</div>
+          </button>
+
+          <button 
+            className="test-btn" 
+            onClick={() => smartZoom({ page: 1, bbox: [0.2885, 0.2233, 0.1344, 0.4667] })}
+          >
+            3. Smart Zoom
+            <div style={{fontSize: 10, fontWeight: "normal", opacity: 0.8}}>Zooms scale(2.5) at BBOX center</div>
+          </button>
+
+          <button className="test-btn clear" onClick={clear} style={{ marginTop: "auto" }}>
+            ❌ Clear All Effects
+          </button>
         </div>
 
-        <div style={{ marginBottom: 20, fontSize: 12, color: "#aaa" }}>
-          Status: <span style={{ color: wsRef.current ? "#0f0" : "#f00" }}>●</span>
-          <br />
-          ID: {clientId}
-        </div>
-
-        <div style={{ flex: 1, background: "#000", padding: 10, borderRadius: 4, overflowY: "auto", fontFamily: "monospace", fontSize: 11 }}>
-          <div style={{ color: "#666", marginBottom: 5 }}>LOGS:</div>
-          <div style={{ color: "#0f0" }}>{log}</div>
+        <div style={{ background: "#000", padding: 10, borderRadius: 4, fontFamily: "monospace", fontSize: 11, color: "#0f0", marginTop: 20 }}>
+          <div style={{color: "#666", marginBottom: 5}}>LOGS:</div>
+          {log}
         </div>
       </div>
 
       {/* --- MAIN PDF VIEW --- */}
-      <div style={{ flex: 1, overflowY: "auto", background: "#555", padding: 20, display: "flex", justifyContent: "center" }}>
+      <div style={{ flex: 1, overflowY: "auto", background: "#333", padding: 40, display: "flex", justifyContent: "center" }}>
         {file ? (
           <div style={{ maxWidth: 900, width: "100%" }}>
             <Document file={file} onLoadSuccess={onDocumentLoadSuccess}>
               {Array.from(new Array(numPages), (_, i) => {
                 const pageNum = i + 1;
+                const overlay = overlays[pageNum];
+                const isZoomed = zoomTarget?.page === pageNum;
+
                 return (
                   <div
                     key={pageNum}
@@ -297,42 +157,50 @@ const PdfParserApp = () => {
                     data-page-number={pageNum}
                     ref={(el) => (pageRefs.current[pageNum] = el)}
                     className={`pdf-page-container ${activePage === pageNum ? "active-page" : ""}`}
+                    style={{
+                      transform: isZoomed ? "scale(2.5)" : "scale(1)",
+                      transformOrigin: isZoomed ? zoomTarget.origin : "center center",
+                      zIndex: isZoomed ? 50 : 1,
+                    }}
                   >
-                    <div style={{ position: "absolute", left: -40, top: 0, color: "#fff", fontWeight: "bold" }}>
-                      {pageNum}
-                    </div>
-                    
                     <Page
                       pageNumber={pageNum}
                       scale={scale}
-                      renderTextLayer={true}
+                      renderTextLayer={false} 
                       renderAnnotationLayer={false}
-                      customTextRenderer={textRenderer}
                     />
+
+                    {/* FIXED OVERLAY MAGIC FOR [left, top, width, height] */}
+                    {overlay && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: `${overlay.bbox[0] * 100}%`,
+                          top: `${overlay.bbox[1] * 100}%`,
+                          width: `${overlay.bbox[2] * 100}%`, // Just use width directly
+                          height: `${overlay.bbox[3] * 100}%`, // Just use height directly
+                          backgroundColor: overlay.type === "highlight" ? overlay.color : "transparent",
+                          border: overlay.type === "ink" ? `3px solid ${overlay.color}` : "none",
+                          borderRadius: "4px",
+                          pointerEvents: "none", 
+                          mixBlendMode: overlay.type === "highlight" ? "multiply" : "normal", 
+                          transition: "all 0.3s ease"
+                        }}
+                      />
+                    )}
                   </div>
                 );
               })}
             </Document>
           </div>
         ) : (
-          <div style={{ color: "#ccc", marginTop: 100 }}>
-            Upload a PDF to begin session
+          <div style={{ color: "#aaa", marginTop: 100, display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div style={{fontSize: 40, marginBottom: 10}}>📄</div>
+            <h2>Upload a PDF to Test BBOX</h2>
+            <p style={{fontSize: 14}}>The buttons on the left will apply overlays to Page 1.</p>
           </div>
         )}
       </div>
-
-      {/* --- MODAL (INSPECT MODE) --- */}
-      {modalImage && (
-        <div 
-          onClick={() => setModalImage(null)}
-          style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.9)", zIndex: 999, display: "flex", justifyContent: "center", alignItems: "center" }}
-        >
-          <img src={modalImage} style={{ maxWidth: "90%", maxHeight: "90%", borderRadius: "4px", boxShadow: "0 0 20px rgba(0,0,0,0.5)" }} alt="Inspected Content" />
-          <div style={{ position: "absolute", bottom: 20, color: "white", background: "rgba(0,0,0,0.7)", padding: "5px 10px", borderRadius: "4px" }}>
-            Click anywhere to close
-          </div>
-        </div>
-      )}
     </div>
   );
 };

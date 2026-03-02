@@ -70,6 +70,7 @@ async def simulate_speech(client_id: str, message: str):
 # =====================================================================
 # GOOGLE CLOUD SPEECH-TO-TEXT WEBSOCKET (Backend Terminal Only)
 # =====================================================================
+
 @websocket_router.websocket("/ws/stt/{client_id}")
 async def stt_endpoint(websocket: WebSocket, client_id: str):
     await websocket.accept()

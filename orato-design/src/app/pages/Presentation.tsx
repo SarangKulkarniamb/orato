@@ -152,18 +152,38 @@ export function Presentation() {
     navigateToPage({ page: pageNum });
   }, [navigateToPage]);
 
+  const wsHandlersRef = useRef({
+    navigate: navigateToPage,
+    color: colorAction,
+    highlight: highlightAction,
+    inspect: inspectImage,
+    transcript: transcript
+  });
+
+  useEffect(() => {
+    wsHandlersRef.current = {
+      navigate: navigateToPage,
+      color: colorAction,
+      highlight: highlightAction,
+      inspect: inspectImage,
+      transcript: transcript
+    };
+  }, [navigateToPage, colorAction, highlightAction, inspectImage, transcript]);
+
   // =====================================================================
-  // WEBSOCKET 1: CONTROL (Navigation, Zoom, etc.)
+  // WEBSOCKET 1: MAIN CONTROL (Rock Solid Persistent Connection)
   // =====================================================================
   useEffect(() => {
-    if (wsRef.current || !id) return;
+    if (!id) return; // Wait until we have a document ID
+    
     const token = useAuthStore.getState().token || localStorage.getItem("token");
     const user = useAuthStore.getState().user;
-    
-    const cId = user?.id && id ? `${user.id}_${id}` : `client_${Math.random().toString(36).substring(2,6)}`;
+    if (!token) return;
+
+    const cId = user?.id && id ? `${user.id}_${id}` : `client_${id}`;
     setClientId(cId);
     
-    const apiBase: string = (import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000";
+    const apiBase = (import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000";
     const wsBase = apiBase.replace(/^http/, apiBase.startsWith("https") ? "wss" : "ws");
     
     const ws = new WebSocket(`${wsBase}/ws/${cId}?token=${token}`);
@@ -175,79 +195,79 @@ export function Presentation() {
       try {
         const msg = JSON.parse(event.data);
         const data = msg.data || msg;
+        const handlers = wsHandlersRef.current;
         switch (msg.type) {
-          case "navigate": navigateToPage(data); break;
+          case "navigate": handlers.navigate(data); break;
           case "zoom": setZoomLevel(z => Math.min(z + 0.1, 3)); break;
-          case "color": colorAction(data); break;
-          case "highlight": highlightAction(data); break;
-          case "inspect": inspectImage(data); break;
+          case "color": handlers.color(data); break;
+          case "highlight": handlers.highlight(data); break;
+          case "inspect": handlers.inspect(data); break;
           case "clear": setHighlights({}); setTranscript("Cleared all"); break;
-          // You can keep this generic speech listener in case you send alerts via the control WS
-          case "speech": setTranscript(typeof data === "string" ? data : data.text || transcript); break;
+          case "speech": setTranscript(typeof data === "string" ? data : data.text || handlers.transcript); break;
         }
       } catch (e) {}
     };
-    return () => { ws.close(); wsRef.current = null; };
-  }, [id, navigateToPage, scale, colorAction, highlightAction, inspectImage]);
-
-  // =====================================================================
-  // WEBSOCKET 2: GOOGLE STT AUDIO STREAM (One-Way to Server)
-  // =====================================================================
-  useEffect(() => {
-    if (!clientId) return;
     
-    const apiBase: string = (import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000";
-    const wsBase = apiBase.replace(/^http/, apiBase.startsWith("https") ? "wss" : "ws");
-    
-    const sttWs = new WebSocket(`${wsBase}/ws/stt/${clientId}`);
-    sttWsRef.current = sttWs;
-
-    sttWs.onopen = () => console.log("STT WebSocket Connected");
-    sttWs.onclose = () => console.log("STT WebSocket Disconnected");
-    
-    // Server no longer sends text back, so we do nothing here
-    sttWs.onmessage = () => {};
-
-    return () => {
-      sttWs.close();
-      sttWsRef.current = null;
+    return () => { 
+      ws.close(); 
+      wsRef.current = null; 
     };
-  }, [clientId]);
+  }, [id]); // Only runs ONCE per document, guaranteeing stability.
+
 
   // =====================================================================
-  // MICROPHONE CAPTURE & PROCESSING
+  // WEBSOCKET 2 & MIC: GOOGLE STT (Only runs when Mic is actually ON)
   // =====================================================================
   useEffect(() => {
+    let sttWs: WebSocket | null = null;
+
     const startRecording = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        streamRef.current = stream;
+        if (!clientId) return;
 
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        const audioContext = new AudioContextClass({ sampleRate: 16000 });
-        audioContextRef.current = audioContext;
+        // 1. Open WebSocket First
+        const apiBase = (import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000";
+        const wsBase = apiBase.replace(/^http/, apiBase.startsWith("https") ? "wss" : "ws");
+        
+        sttWs = new WebSocket(`${wsBase}/ws/stt/${clientId}`);
+        sttWsRef.current = sttWs;
 
-        const source = audioContext.createMediaStreamSource(stream);
-        const processor = audioContext.createScriptProcessor(4096, 1, 1);
-        processorRef.current = processor;
+        sttWs.onopen = async () => {
+          console.log("🎤 STT WebSocket Connected");
+          setTranscript("Listening...");
 
-        processor.onaudioprocess = (e) => {
-          const inputData = e.inputBuffer.getChannelData(0);
-          
-          const pcmData = new Int16Array(inputData.length);
-          for (let i = 0; i < inputData.length; i++) {
-            pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-          }
+          // 2. Turn on Mic immediately after so Google doesn't timeout
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          streamRef.current = stream;
 
-          if (sttWsRef.current?.readyState === WebSocket.OPEN) {
-            sttWsRef.current.send(pcmData.buffer);
-          }
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          const audioContext = new AudioContextClass({ sampleRate: 48000 });
+          audioContextRef.current = audioContext;
+
+          const source = audioContext.createMediaStreamSource(stream);
+          const processor = audioContext.createScriptProcessor(4096, 1, 1);
+          processorRef.current = processor;
+
+          // @ts-ignore
+          processor.onaudioprocess = (e) => {
+            const inputData = e.inputBuffer.getChannelData(0);
+            const pcmData = new Int16Array(inputData.length);
+            for (let i = 0; i < inputData.length; i++) {
+              pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+            }
+            if (sttWs && sttWs.readyState === WebSocket.OPEN) {
+              sttWs.send(pcmData.buffer);
+            }
+          };
+
+          source.connect(processor);
+          processor.connect(audioContext.destination);
         };
 
-        source.connect(processor);
-        processor.connect(audioContext.destination);
-        
-        setTranscript("Listening...");
+        sttWs.onclose = () => {
+          console.log("🛑 STT WebSocket Disconnected");
+          if (isListening) setIsListening(false); // Auto toggle mic off if server closes
+        };
 
       } catch (err) {
         console.error("Microphone access denied or error:", err);
@@ -257,6 +277,7 @@ export function Presentation() {
     };
 
     const stopRecording = () => {
+      // 1. Stop Mic
       if (processorRef.current && audioContextRef.current) {
         processorRef.current.disconnect();
         audioContextRef.current.close().catch(console.error);
@@ -267,9 +288,15 @@ export function Presentation() {
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
+      // 2. Close STT Socket Gracefully
+      if (sttWs) {
+        sttWs.close();
+        sttWs = null;
+        sttWsRef.current = null;
+      }
     };
 
-    if (isListening) {
+    if (isListening && clientId) {
       startRecording();
     } else {
       stopRecording();
@@ -277,9 +304,12 @@ export function Presentation() {
     }
 
     return () => stopRecording();
-  }, [isListening]);
+  }, [isListening, clientId]); // Tied directly to the user clicking the mic button!
 
 
+  // =====================================================================
+  // UI LOGIC (Intersection Observers & Scaling)
+  // =====================================================================
   useEffect(() => {
     if (!numPages) return;
     const observer = new IntersectionObserver(

@@ -274,7 +274,7 @@ export function Presentation() {
             break;
           case "highlight": 
           case "search": 
-            if (slide && bbox) handlers.highlight(slide, bbox, type);
+            if (slide && bbox) handlers.navigate(slide);
             break;
           case "zoom": 
             if (slide && bbox) handlers.zoom(slide, bbox, type);

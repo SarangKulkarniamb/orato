@@ -1,9 +1,13 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict
+from retreival_pipeline import retrieve, load_vector_db
 import json
 import asyncio
 from auth import create_access_token
 import wave
+
+vector_db = load_vector_db()
+
 # --- NEW IMPORTS FOR GOOGLE STT ---
 from google.cloud.speech_v1 import SpeechAsyncClient
 from google.cloud.speech_v1.types import (
@@ -139,7 +143,21 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
             transcript = result.alternatives[0].transcript
             
             if result.is_final:
-                print(f"✅ [FINAL]: {transcript}") 
+                print(f"✅ [FINAL]: {transcript}")
+                response = retrieve(transcript, vector_db)
+                if response:
+                    print(f"🎯 Action: {response}")
+                    target_socket = active_connections.get(client_id)
+                    if target_socket:
+                        await target_socket.send_json({
+                            "type": "action",
+                            "intent": response["intent"],
+                            "slide": response["slide"],
+                            "bbox": response["bbox"],
+                            "section": response["section"],
+                            "title": response["title"]
+                        })
+
             else:
                 print(f"⏳ [INTERIM]: {transcript}")
 

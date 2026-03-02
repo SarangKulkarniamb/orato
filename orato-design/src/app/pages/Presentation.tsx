@@ -18,7 +18,6 @@ const staticStyles = `
   .custom-scrollbar::-webkit-scrollbar-track { background: #0a0a0a; }
   .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
   
-  /* BBOX Overlay animations */
   @keyframes pulse-border {
     0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
     70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
@@ -50,7 +49,10 @@ export function Presentation() {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [docTitle, setDocTitle] = useState("");
   const [numPages, setNumPages] = useState<number | null>(null);
+  
   const [activePage, setActivePage] = useState(1);
+  const activePageRef = useRef(activePage); 
+  
   const [baseScale, setBaseScale] = useState(1);
   const [zoomLevel, setZoomLevel] = useState(1);
   const scale = baseScale * zoomLevel;
@@ -73,6 +75,9 @@ export function Presentation() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+
+  // Sync ref with state for accurate next/prev websocket commands
+  useEffect(() => { activePageRef.current = activePage; }, [activePage]);
 
   useEffect(() => {
     const token = useAuthStore.getState().token || localStorage.getItem("token");
@@ -101,10 +106,6 @@ export function Presentation() {
     return () => { if (fileUrl) URL.revokeObjectURL(fileUrl); };
   }, [id]);
 
-
-  // =====================================================================
-  // IMAGE EXTRACTION LOGIC
-  // =====================================================================
   const convertRawDataToUrl = useCallback((imgObj: any) => {
     if (!imgObj) return null;
     if (imgObj.bitmap) {
@@ -149,16 +150,10 @@ export function Presentation() {
         if (url) {
           setModalImage(url);
         }
-      } else {
-        console.warn(`⚠️ Tried to extract image index ${index}, but only found ${imageRefs.length} raster images on slide ${pageNum}. (It might be a vector graphic)`);
       }
     } catch (e) { console.error("Error extracting image:", e); }
   }, [pdfDocument, convertRawDataToUrl]);
 
-
-  // =====================================================================
-  // SPATIAL / BBOX HANDLERS
-  // =====================================================================
   const handleNavigate = useCallback((slide: number) => {
     const pageNum = Math.min(Math.max(1, slide), numPages || 1);
     const el = pageRefs.current[pageNum];
@@ -170,10 +165,9 @@ export function Presentation() {
 
   const handleHighlight = useCallback((slide: number, bbox: number[], type = "text", isInspect = false) => {
     const overlayId = `bbox_${slide}_${Date.now()}`;
-    
-    let color = "rgba(253, 224, 71, 0.4)"; // Yellow for text
-    if (isInspect) color = "rgba(239, 68, 68, 0.3)"; // Red for inspect
-    else if (type === "image") color = "rgba(59, 130, 246, 0.4)"; // Blue for image
+    let color = "rgba(253, 224, 71, 0.4)"; 
+    if (isInspect) color = "rgba(239, 68, 68, 0.3)"; 
+    else if (type === "image") color = "rgba(59, 130, 246, 0.4)"; 
     
     setBboxes(prev => {
       const pageBoxes = prev[slide] || [];
@@ -208,10 +202,10 @@ export function Presentation() {
   }, [handleHighlight, handleNavigate, extractAndShowImage]);
 
   const handleClear = useCallback(() => {
-    setBboxes({});
-    setModalImage(null);
-    setZoomLevel(1);
-    setTranscript("Cleared all selections");
+    setBboxes({}); 
+    setModalImage(null); 
+    setZoomLevel(1); 
+    setTranscript("Cleared all effects");
   }, []);
 
   const wsHandlersRef = useRef({
@@ -264,17 +258,31 @@ export function Presentation() {
         const slide = msg.slide || msg.Slide;
         const bbox = msg.bbox || msg.BBOX;
         const type = (msg.type || msg.Type || "text").toLowerCase();
-        // Bulletproof image index parser
         const imageInd = msg.imageind ?? msg.imageInd ?? msg.ImageInd ?? msg.imageIndex ?? msg.ImageIndex; 
         const textData = msg.content || msg.Content || msg.text || msg.Text;
 
         switch (intent) {
+          // New Direct UI Commands
+          case "zoom_in":
+            setZoomLevel(z => Math.min(z + 0.3, 4));
+            break;
+          case "zoom_out":
+            setZoomLevel(z => Math.max(z - 0.3, 0.4));
+            break;
+          case "next":
+            handlers.navigate(activePageRef.current + 1);
+            break;
+          case "prev":
+            handlers.navigate(activePageRef.current - 1);
+            break;
+
+          // Contextual Commands
           case "navigate": 
-            handlers.navigate(slide); 
+          case "search": 
+            if (slide) handlers.navigate(slide); 
             break;
           case "highlight": 
-          case "search": 
-            if (slide && bbox) handlers.navigate(slide);
+            if (slide && bbox) handlers.highlight(slide, bbox, type);
             break;
           case "zoom": 
             if (slide && bbox) handlers.zoom(slide, bbox, type);
@@ -297,7 +305,6 @@ export function Presentation() {
       wsRef.current = null; 
     };
   }, [id]);
-
 
   // =====================================================================
   // WEBSOCKET 2 & MIC: GOOGLE STT 
@@ -385,7 +392,6 @@ export function Presentation() {
 
     return () => stopRecording();
   }, [isListening, clientId]);
-
 
   // =====================================================================
   // UI LOGIC

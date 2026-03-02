@@ -93,7 +93,6 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
         interim_results=True
     )
 
-    # --- DEBUG: Create a WAV file to record the incoming audio ---
     wav_filename = f"debug_audio_{client_id}.wav"
     wav_file = wave.open(wav_filename, "wb")
     wav_file.setnchannels(1) # Mono
@@ -145,6 +144,7 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
             if result.is_final:
                 print(f"✅ [FINAL]: {transcript}")
                 response = retrieve(transcript, vector_db)
+                print(f" RESPONSE : {response}")
                 if response:
                     print(f"🎯 Action: {response}")
                     target_socket = active_connections.get(client_id)

@@ -1,6 +1,17 @@
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pypdf import PdfReader
+import pdfplumber
+
+def normalize_bbox_pdf(x0, top, x1, bottom, page_width, page_height):
+    return (
+        x0 / page_width,
+        top / page_height,
+        (x1 - x0) / page_width,
+        (bottom - top) / page_height
+    )
+
+
 
 def clean_text(text):
     if not text:
@@ -9,7 +20,7 @@ def clean_text(text):
     return text if text else None
 
 
-def normalize_bbox(shape, slide_width, slide_height):
+def normalize_bbox_ppt(shape, slide_width, slide_height):
     return (
         shape.left / slide_width,
         shape.top / slide_height,
@@ -49,7 +60,7 @@ def parse_ppt(file_path):
                 "id": f"obj_{shape_idx}",
                 "type": None,
                 "text": None,
-                "bbox": normalize_bbox(shape, slide_width, slide_height)
+                "bbox": normalize_bbox_ppt(shape, slide_width, slide_height)
             }
 
             if shape.has_text_frame:
@@ -93,25 +104,39 @@ def parse_ppt(file_path):
 
 
 def parse_pdf(file_path):
-    reader = PdfReader(file_path)
     parsed_data = {}
 
-    for page_idx, page in enumerate(reader.pages):
-        page_id = page_idx + 1
+    with pdfplumber.open(file_path) as pdf:
+        for page_idx, page in enumerate(pdf.pages):
+            page_id = page_idx + 1
 
-        text = clean_text(page.extract_text())
+            parsed_data[page_id] = {
+                "title": f"Page {page_id}",
+                "objects": []
+            }
 
-        parsed_data[page_id] = {
-            "title": f"Page {page_id}",
-            "objects": []
-        }
+            words = page.extract_words()  # 🔥 key function
 
-        if text:
-            parsed_data[page_id]["objects"].append({
-                "id": "obj_0",
-                "type": "text",
-                "text": text,
-                "bbox": (0, 0, 1, 1)   
-            })
+            for i, word in enumerate(words):
+                text = word["text"].strip()
+
+                if not text:
+                    continue
+
+                bbox = normalize_bbox_pdf(
+                    word["x0"],
+                    word["top"],
+                    word["x1"],
+                    word["bottom"],
+                    page.width,
+                    page.height
+                )
+
+                parsed_data[page_id]["objects"].append({
+                    "id": f"word_{i}",
+                    "type": "text",
+                    "text": text,
+                    "bbox": bbox
+                })
 
     return parsed_data

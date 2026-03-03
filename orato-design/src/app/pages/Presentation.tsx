@@ -528,10 +528,12 @@ export function Presentation() {
                       
                       {/* BBOX OVERLAYS */}
                       {pageBboxes.map((box) => {
+                        // --- FIXED MATH ---
+                        // Python parser returns [x, y, width, height], NOT [x1, y1, x2, y2]
                         const left = box.bbox[0] * 100;
                         const top = box.bbox[1] * 100;
-                        const width = (box.bbox[2] - box.bbox[0]) * 100;
-                        const height = (box.bbox[3] - box.bbox[1]) * 100;
+                        const width = box.bbox[2] * 100;
+                        const height = box.bbox[3] * 100;
 
                         return (
                           <div

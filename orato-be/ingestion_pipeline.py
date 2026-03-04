@@ -122,7 +122,7 @@ def create_vector_db(documents):
 
 if __name__ == "__main__":
 
-    file_path = "demo.pptx"   
+    file_path = "./uploads/699b14b6a5d2a00755b21129_ERTOS_2_notes__Embedded_Systems_Architecture___Part_1__2026_ (2).pdf"   
 
     print(f"Processing file: {file_path}")
 

@@ -1,14 +1,9 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict
-from retreival_pipeline import retrieve, load_vector_db
+from retreival_pipeline  import retrieve, load_vector_db # Ensure it imports from query.py
 import json
-import asyncio
-from auth import create_access_token
 import wave
 
-vector_db = load_vector_db()
-
-# --- NEW IMPORTS FOR GOOGLE STT ---
 from google.cloud.speech_v1 import SpeechAsyncClient
 from google.cloud.speech_v1.types import (
     RecognitionConfig,
@@ -71,6 +66,7 @@ async def simulate_speech(client_id: str, message: str):
     await target_socket.send_json(real_payload)
     return {"status": "success", "message": f"Sent to {client_id}"}
 
+
 # =====================================================================
 # GOOGLE CLOUD SPEECH-TO-TEXT WEBSOCKET (Backend Terminal Only)
 # =====================================================================
@@ -79,6 +75,18 @@ async def simulate_speech(client_id: str, message: str):
 async def stt_endpoint(websocket: WebSocket, client_id: str):
     await websocket.accept()
     print(f"🎤 STT Audio stream connected for {client_id}")
+
+    # --- 🔥 DYNAMIC DATABASE LOADING 🔥 ---
+    # Parse doc_id from frontend client_id (format: "user_id_doc_id")
+    parts = client_id.split("_")
+    doc_id = parts[-1] if len(parts) > 1 else client_id
+    
+    try:
+        session_vector_db = load_vector_db(doc_id)
+        print(f"📚 Successfully loaded Vector DB context for Document: {doc_id}")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not load Vector DB for {doc_id}. Did ingestion fail? Error: {e}")
+        session_vector_db = None
 
     client = SpeechAsyncClient()
 
@@ -93,38 +101,17 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
         interim_results=True
     )
 
-    # --- DEBUG: Create a WAV file to record the incoming audio ---
-    wav_filename = f"debug_audio_{client_id}.wav"
-    wav_file = wave.open(wav_filename, "wb")
-    wav_file.setnchannels(1) # Mono
-    wav_file.setsampwidth(2) # 16-bit
-    wav_file.setframerate(48000) # Match your frontend
-
     async def audio_generator():
         yield StreamingRecognizeRequest(streaming_config=streaming_config)
         print("🚀 Stream config sent. Listening for audio chunks...")
-        
-        chunk_count = 0
         try:
             while True:
                 data = await websocket.receive_bytes()
-                
-                # --- DEBUG: Write the raw bytes to the WAV file ---
-                wav_file.writeframes(data)
-                
-                chunk_count += 1
-                if chunk_count % 50 == 0:
-                    print(f"📦 Receiving audio data... (Chunk {chunk_count})")
-                    
                 yield StreamingRecognizeRequest(audio_content=data)
         except WebSocketDisconnect:
             pass 
         except Exception as e:
             print(f"⚠️ Audio generator error: {e}")
-        finally:
-            # Safely close and save the WAV file when the mic turns off
-            wav_file.close()
-            print(f"💾 Saved debug audio to {wav_filename}")
 
     try:
         requests = audio_generator()
@@ -144,91 +131,28 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
             
             if result.is_final:
                 print(f"✅ [FINAL]: {transcript}")
-                response = retrieve(transcript, vector_db)
-                if response:
-                    print(f"🎯 Action: {response}")
-                    target_socket = active_connections.get(client_id)
-                    if target_socket:
-                        await target_socket.send_json({
-                            "type": "action",
-                            "intent": response["intent"],
-                            "slide": response["slide"],
-                            "bbox": response["bbox"],
-                            "section": response["section"],
-                            "title": response["title"]
-                        })
-
-            else:
-                print(f"⏳ [INTERIM]: {transcript}")
-
-    except Exception as e:
-        print(f"\n❌ Google STT Error for {client_id}: {e}")
-    finally:
-        print(f"\n🛑 STT Audio stream closed for {client_id}")
-        try:
-            if websocket.client_state.name != "DISCONNECTED":
-                await websocket.close()
-        except Exception:
-            pass
-    """Dedicated websocket for receiving binary audio and streaming to Google STT."""
-    await websocket.accept()
-    print(f"🎤 STT Audio stream connected for {client_id}")
-
-    client = SpeechAsyncClient()
-
-    # --- FIX 1: Ensure this matches the frontend (16000) ---
-    config = RecognitionConfig(
-        encoding=RecognitionConfig.AudioEncoding.LINEAR16,
-        sample_rate_hertz=48000, 
-        language_code="en-US",
-        enable_automatic_punctuation=True,
-    )
-    streaming_config = StreamingRecognitionConfig(
-        config=config,
-        interim_results=True
-    )
-
-    async def audio_generator():
-        # Yield the configuration as the very first request
-        yield StreamingRecognizeRequest(streaming_config=streaming_config)
-        print("🚀 Stream config sent. Listening for audio chunks...")
-        
-        chunk_count = 0
-        try:
-            while True:
-                # Then, yield the audio chunks as they arrive
-                data = await websocket.receive_bytes()
-                chunk_count += 1
                 
-                # Print a heartbeat every 50 chunks so you know it's alive in PowerShell
-                if chunk_count % 50 == 0:
-                    print(f"📦 Receiving audio data... (Chunk {chunk_count})")
+                # --- Execute Query using Document-Specific DB ---
+                if session_vector_db:
+                    action_response = retrieve(transcript, session_vector_db)
                     
-                yield StreamingRecognizeRequest(audio_content=data)
-        except WebSocketDisconnect:
-            pass # Disconnects are expected when turning mic off
-        except Exception as e:
-            print(f"⚠️ Audio generator error: {e}")
-
-    try:
-        requests = audio_generator()
-        responses = await client.streaming_recognize(requests=requests)
-        
-        print("🎧 Connected to Google ML. Waiting for words...")
-
-        async for response in responses:
-            if not response.results:
-                continue
-
-            result = response.results[0]
-            if not result.alternatives:
-                continue
-
-            transcript = result.alternatives[0].transcript
-            
-            # --- FIX 2: Plain text prints that PowerShell can actually read ---
-            if result.is_final:
-                print(f"✅ [FINAL]: {transcript}") 
+                    if action_response:
+                        print(f"🎯 Action: {action_response}")
+                        target_socket = active_connections.get(client_id)
+                        
+                        if target_socket:
+                            # Forward exact UI commands to the frontend via WebSocket
+                            await target_socket.send_json({
+                                "type": "action",
+                                "intent": action_response["intent"],
+                                "slide": action_response["slide"],
+                                "bbox": action_response["bbox"],
+                                "section": action_response["section"],
+                                "title": action_response["title"],
+                                "imageInd": action_response.get("imageInd", 0)
+                            })
+                else:
+                    print("⚠️ Context not loaded, cannot search vector DB.")
             else:
                 print(f"⏳ [INTERIM]: {transcript}")
 

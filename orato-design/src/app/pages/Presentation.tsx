@@ -17,7 +17,27 @@ const staticStyles = `
   .custom-scrollbar::-webkit-scrollbar { width: 8px; }
   .custom-scrollbar::-webkit-scrollbar-track { background: #0a0a0a; }
   .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+  
+  @keyframes pulse-border {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  }
+  .bbox-highlight {
+    position: absolute;
+    border-radius: 4px;
+    pointer-events: none;
+    transition: all 0.3s ease-in-out;
+    z-index: 10;
+  }
 `;
+
+type BboxOverlay = {
+  id: string;
+  bbox: number[]; 
+  color: string;
+  isInspect?: boolean;
+};
 
 export function Presentation() {
   const navigate = useNavigate();
@@ -29,29 +49,35 @@ export function Presentation() {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [docTitle, setDocTitle] = useState("");
   const [numPages, setNumPages] = useState<number | null>(null);
+  
   const [activePage, setActivePage] = useState(1);
+  const activePageRef = useRef(activePage); 
+  
   const [baseScale, setBaseScale] = useState(1);
   const [zoomLevel, setZoomLevel] = useState(1);
   const scale = baseScale * zoomLevel;
-  const [highlights, setHighlights] = useState<Record<number, any>>({});
-  const [pdfDocument, setPdfDocument] = useState<any>(null);
+  
+  const [bboxes, setBboxes] = useState<Record<number, BboxOverlay[]>>({});
   const [modalImage, setModalImage] = useState<string | null>(null);
+  
+  const [pdfDocument, setPdfDocument] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [clientId, setClientId] = useState("");
   
-  // --- REFS ---
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const bboxRefs = useRef<Record<string, HTMLDivElement | null>>({});
   
   const wsRef = useRef<WebSocket | null>(null);
-  
-  // STT Streaming Refs
   const sttWsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+
+  // Sync ref with state for accurate next/prev websocket commands
+  useEffect(() => { activePageRef.current = activePage; }, [activePage]);
 
   useEffect(() => {
     const token = useAuthStore.getState().token || localStorage.getItem("token");
@@ -107,19 +133,8 @@ export function Presentation() {
     return canvas.toDataURL();
   }, []);
 
-  const navigateToPage = useCallback(({ page }: { page: number | string }) => {
-    const pageNum = Math.min(Math.max(1, parseInt(page as string)), numPages || 1);
-    const el = pageRefs.current[pageNum];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      setActivePage(pageNum);
-    }
-  }, [numPages]);
-
-  const inspectImage = useCallback(async ({ page, imageInd }: any) => {
+  const extractAndShowImage = useCallback(async (pageNum: number, index: number) => {
     if (!pdfDocument) return;
-    const pageNum = parseInt(page);
-    const index = parseInt(imageInd);
     try {
       const pdfPage = await pdfDocument.getPage(pageNum);
       const ops = await pdfPage.getOperatorList();
@@ -134,47 +149,90 @@ export function Presentation() {
         const url = convertRawDataToUrl(imgObj);
         if (url) {
           setModalImage(url);
-          setTranscript(`Inspected image ${index} on page ${pageNum}`);
         }
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error extracting image:", e); }
   }, [pdfDocument, convertRawDataToUrl]);
 
-  const colorAction = useCallback(({ page, start, end, color = "red" }: any) => {
-    const pageNum = parseInt(page);
-    setHighlights((prev) => ({ ...prev, [pageNum]: { start, end, color, type: "text-color" } }));
-    navigateToPage({ page: pageNum });
-  }, [navigateToPage]);
+  const handleNavigate = useCallback((slide: number) => {
+    const pageNum = Math.min(Math.max(1, slide), numPages || 1);
+    const el = pageRefs.current[pageNum];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setActivePage(pageNum);
+    }
+  }, [numPages]);
 
-  const highlightAction = useCallback(({ page, start, end, color = "yellow" }: any) => {
-    const pageNum = parseInt(page);
-    setHighlights((prev) => ({ ...prev, [pageNum]: { start, end, color, type: "background" } }));
-    navigateToPage({ page: pageNum });
-  }, [navigateToPage]);
+  const handleHighlight = useCallback((slide: number, bbox: number[], type = "text", isInspect = false) => {
+    const overlayId = `bbox_${slide}_${Date.now()}`;
+    let color = "rgba(253, 224, 71, 0.4)"; 
+    if (isInspect) color = "rgba(239, 68, 68, 0.3)"; 
+    else if (type === "image") color = "rgba(59, 130, 246, 0.4)"; 
+    
+    setBboxes(prev => {
+      const pageBoxes = prev[slide] || [];
+      return { ...prev, [slide]: [...pageBoxes, { id: overlayId, bbox, color, isInspect }] };
+    });
+    
+    handleNavigate(slide);
+  }, [handleNavigate]);
+
+  const handleZoom = useCallback((slide: number, bbox: number[], type = "image") => {
+    setZoomLevel(2.2); 
+    handleHighlight(slide, bbox, type); 
+    handleNavigate(slide);
+
+    setTimeout(() => {
+      const overlaysOnPage = Object.values(bboxRefs.current);
+      const latestOverlay = overlaysOnPage[overlaysOnPage.length - 1];
+      if (latestOverlay) {
+        latestOverlay.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      }
+    }, 300);
+  }, [handleHighlight, handleNavigate]);
+
+  const handleInspect = useCallback((slide: number, bbox: number[], imageInd?: number) => {
+    handleHighlight(slide, bbox, "image", true);
+    setZoomLevel(1.5);
+    handleNavigate(slide);
+
+    if (imageInd !== undefined && imageInd !== null) {
+      extractAndShowImage(slide, imageInd);
+    }
+  }, [handleHighlight, handleNavigate, extractAndShowImage]);
+
+  const handleClear = useCallback(() => {
+    setBboxes({}); 
+    setModalImage(null); 
+    setZoomLevel(1); 
+    setTranscript("Cleared all effects");
+  }, []);
 
   const wsHandlersRef = useRef({
-    navigate: navigateToPage,
-    color: colorAction,
-    highlight: highlightAction,
-    inspect: inspectImage,
-    transcript: transcript
+    navigate: handleNavigate,
+    highlight: handleHighlight,
+    zoom: handleZoom,
+    inspect: handleInspect,
+    clear: handleClear,
+    transcriptUpdater: setTranscript
   });
 
   useEffect(() => {
     wsHandlersRef.current = {
-      navigate: navigateToPage,
-      color: colorAction,
-      highlight: highlightAction,
-      inspect: inspectImage,
-      transcript: transcript
+      navigate: handleNavigate,
+      highlight: handleHighlight,
+      zoom: handleZoom,
+      inspect: handleInspect,
+      clear: handleClear,
+      transcriptUpdater: setTranscript
     };
-  }, [navigateToPage, colorAction, highlightAction, inspectImage, transcript]);
+  }, [handleNavigate, handleHighlight, handleZoom, handleInspect, handleClear]);
 
   // =====================================================================
-  // WEBSOCKET 1: MAIN CONTROL (Rock Solid Persistent Connection)
+  // WEBSOCKET 1: MAIN CONTROL 
   // =====================================================================
   useEffect(() => {
-    if (!id) return; // Wait until we have a document ID
+    if (!id) return;
     
     const token = useAuthStore.getState().token || localStorage.getItem("token");
     const user = useAuthStore.getState().user;
@@ -194,16 +252,50 @@ export function Presentation() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        const data = msg.data || msg;
         const handlers = wsHandlersRef.current;
-        switch (msg.type) {
-          case "navigate": handlers.navigate(data); break;
-          case "zoom": setZoomLevel(z => Math.min(z + 0.1, 3)); break;
-          case "color": handlers.color(data); break;
-          case "highlight": handlers.highlight(data); break;
-          case "inspect": handlers.inspect(data); break;
-          case "clear": setHighlights({}); setTranscript("Cleared all"); break;
-          case "speech": setTranscript(typeof data === "string" ? data : data.text || handlers.transcript); break;
+        
+        const intent = (msg.intent || msg.Intent || "").toLowerCase();
+        const slide = msg.slide || msg.Slide;
+        const bbox = msg.bbox || msg.BBOX;
+        const type = (msg.type || msg.Type || "text").toLowerCase();
+        const imageInd = msg.imageind ?? msg.imageInd ?? msg.ImageInd ?? msg.imageIndex ?? msg.ImageIndex; 
+        const textData = msg.content || msg.Content || msg.text || msg.Text;
+
+        switch (intent) {
+          // New Direct UI Commands
+          case "zoom_in":
+            setZoomLevel(z => Math.min(z + 0.3, 4));
+            break;
+          case "zoom_out":
+            setZoomLevel(z => Math.max(z - 0.3, 0.4));
+            break;
+          case "next":
+            handlers.navigate(activePageRef.current + 1);
+            break;
+          case "prev":
+            handlers.navigate(activePageRef.current - 1);
+            break;
+
+          // Contextual Commands
+          case "navigate": 
+          case "search": 
+            if (slide) handlers.navigate(slide); 
+            break;
+          case "highlight": 
+            if (slide && bbox) handlers.highlight(slide, bbox, type);
+            break;
+          case "zoom": 
+            if (slide && bbox) handlers.zoom(slide, bbox, type);
+            break;
+          case "inspect": 
+            if (slide && bbox) handlers.inspect(slide, bbox, imageInd);
+            break;
+          case "clear": 
+            handlers.clear(); 
+            break;
+          case "speech": 
+            if (textData) handlers.transcriptUpdater(textData); 
+            break;
         }
       } catch (e) {}
     };
@@ -212,11 +304,10 @@ export function Presentation() {
       ws.close(); 
       wsRef.current = null; 
     };
-  }, [id]); // Only runs ONCE per document, guaranteeing stability.
-
+  }, [id]);
 
   // =====================================================================
-  // WEBSOCKET 2 & MIC: GOOGLE STT (Only runs when Mic is actually ON)
+  // WEBSOCKET 2 & MIC: GOOGLE STT 
   // =====================================================================
   useEffect(() => {
     let sttWs: WebSocket | null = null;
@@ -225,7 +316,6 @@ export function Presentation() {
       try {
         if (!clientId) return;
 
-        // 1. Open WebSocket First
         const apiBase = (import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000";
         const wsBase = apiBase.replace(/^http/, apiBase.startsWith("https") ? "wss" : "ws");
         
@@ -236,7 +326,6 @@ export function Presentation() {
           console.log("🎤 STT WebSocket Connected");
           setTranscript("Listening...");
 
-          // 2. Turn on Mic immediately after so Google doesn't timeout
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           streamRef.current = stream;
 
@@ -266,7 +355,7 @@ export function Presentation() {
 
         sttWs.onclose = () => {
           console.log("🛑 STT WebSocket Disconnected");
-          if (isListening) setIsListening(false); // Auto toggle mic off if server closes
+          if (isListening) setIsListening(false);
         };
 
       } catch (err) {
@@ -277,7 +366,6 @@ export function Presentation() {
     };
 
     const stopRecording = () => {
-      // 1. Stop Mic
       if (processorRef.current && audioContextRef.current) {
         processorRef.current.disconnect();
         audioContextRef.current.close().catch(console.error);
@@ -288,7 +376,6 @@ export function Presentation() {
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
-      // 2. Close STT Socket Gracefully
       if (sttWs) {
         sttWs.close();
         sttWs = null;
@@ -304,11 +391,10 @@ export function Presentation() {
     }
 
     return () => stopRecording();
-  }, [isListening, clientId]); // Tied directly to the user clicking the mic button!
-
+  }, [isListening, clientId]);
 
   // =====================================================================
-  // UI LOGIC (Intersection Observers & Scaling)
+  // UI LOGIC
   // =====================================================================
   useEffect(() => {
     if (!numPages) return;
@@ -351,18 +437,10 @@ export function Presentation() {
 
   return (
     <div className="h-screen bg-[#0a0a0a] flex overflow-hidden font-sans text-slate-200">
-      <style>{`
-        ${staticStyles}
-        ${Object.entries(highlights).map(([page, cfg]) => {
-          const selector = `#page-wrapper-${page} .react-pdf__Page__textContent span:nth-child(n+${cfg.start}):nth-child(-n+${cfg.end})`;
-          return cfg.type === "text-color" 
-            ? `${selector} { color: ${cfg.color} !important; opacity: 1 !important; }`
-            : `${selector} { background-color: ${cfg.color}; opacity: 0.4 !important; color: transparent; }`;
-        }).join("")}
-      `}</style>
+      <style>{staticStyles}</style>
 
       {/* --- SIDEBAR --- */}
-      <motion.div animate={{ width: sidebarCollapsed ? 80 : 320 }} className="bg-[#161616] border-r border-[#2a2a2a] flex flex-col z-20 shadow-2xl">
+      <motion.div animate={{ width: sidebarCollapsed ? 80 : 320 }} className="bg-[#161616] border-r border-[#2a2a2a] flex flex-col z-20 shadow-2xl shrink-0">
         <div className="p-6 flex items-center justify-between border-b border-[#2a2a2a]">
           {!sidebarCollapsed && <h1 className="font-bold text-xl text-white tracking-tight">ORATO<span className="text-blue-500">.AI</span></h1>}
           <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="p-2 hover:bg-[#2a2a2a] rounded-lg transition-colors"><Maximize2 size={20} /></button>
@@ -384,7 +462,7 @@ export function Presentation() {
               </div>
 
               <div className="w-full grid grid-cols-2 gap-2">
-                <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 3))} className="flex items-center justify-center gap-2 p-3 bg-[#2a2a2a] hover:bg-[#333] rounded-xl text-xs"><ZoomIn size={14}/> In</button>
+                <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 4))} className="flex items-center justify-center gap-2 p-3 bg-[#2a2a2a] hover:bg-[#333] rounded-xl text-xs"><ZoomIn size={14}/> In</button>
                 <button onClick={() => setZoomLevel(z => Math.max(z - 0.1, 0.4))} className="flex items-center justify-center gap-2 p-3 bg-[#2a2a2a] hover:bg-[#333] rounded-xl text-xs"><ZoomOut size={14}/> Out</button>
               </div>
 
@@ -413,7 +491,7 @@ export function Presentation() {
                   {isListening ? <MicOff size={20} /> : <Mic size={20} />}
                 </button>
                 <div className={`w-3 h-3 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
-                <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 3))}><ZoomIn size={20}/></button>
+                <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 4))}><ZoomIn size={20}/></button>
                 <button onClick={() => setZoomLevel(z => Math.max(z - 0.1, 0.4))}><ZoomOut size={20}/></button>
              </div>
           )}
@@ -435,15 +513,51 @@ export function Presentation() {
                 className="flex flex-col items-center"
                 loading={<Loader2 className="w-10 h-10 text-blue-500 animate-spin mt-20" />}
               >
-                {Array.from(new Array(numPages), (_, i) => (
-                  <div 
-                    key={i+1} id={`page-wrapper-${i+1}`} data-page-number={i+1} ref={(el) => { pageRefs.current[i+1] = el; }} 
-                    className={`pdf-page-container ${activePage === i+1 ? 'active-page' : 'opacity-100'}`}
-                  >
-                    <Page pageNumber={i+1} scale={scale} renderAnnotationLayer={false} className="rounded-sm overflow-hidden" customTextRenderer={(t) => t.str} loading="" />
-                    <div className="absolute top-0 -left-16 text-slate-700 font-mono text-xs font-bold pt-4">{String(i+1).padStart(2, '0')}</div>
-                  </div>
-                ))}
+                {Array.from(new Array(numPages), (_, i) => {
+                  const pageNum = i + 1;
+                  const pageBboxes = bboxes[pageNum] || [];
+                  
+                  return (
+                    <div 
+                      key={pageNum} id={`page-wrapper-${pageNum}`} data-page-number={pageNum} 
+                      ref={(el) => { pageRefs.current[pageNum] = el; }} 
+                      className={`pdf-page-container ${activePage === pageNum ? 'active-page' : 'opacity-100'}`}
+                    >
+                      {/* PDF RENDER */}
+                      <Page pageNumber={pageNum} scale={scale} renderAnnotationLayer={false} className="rounded-sm overflow-hidden" customTextRenderer={(t) => t.str} loading="" />
+                      
+                      {/* BBOX OVERLAYS */}
+                      {pageBboxes.map((box) => {
+                        // --- FIXED MATH ---
+                        // Python parser returns [x, y, width, height], NOT [x1, y1, x2, y2]
+                        const left = box.bbox[0] * 100;
+                        const top = box.bbox[1] * 100;
+                        const width = box.bbox[2] * 100;
+                        const height = box.bbox[3] * 100;
+
+                        return (
+                          <div
+                            key={box.id}
+                            ref={(el) => { bboxRefs.current[box.id] = el; }}
+                            className="bbox-highlight"
+                            style={{
+                              left: `${left}%`,
+                              top: `${top}%`,
+                              width: `${width}%`,
+                              height: `${height}%`,
+                              backgroundColor: box.color,
+                              border: box.isInspect ? '3px solid rgba(239, 68, 68, 0.8)' : '1px solid rgba(255,255,255,0.2)',
+                              boxShadow: box.isInspect ? '0 0 20px rgba(239, 68, 68, 0.4)' : 'none',
+                              animation: box.isInspect ? 'pulse-border 2s infinite' : 'none'
+                            }}
+                          />
+                        );
+                      })}
+
+                      <div className="absolute top-0 -left-16 text-slate-700 font-mono text-xs font-bold pt-4">{String(pageNum).padStart(2, '0')}</div>
+                    </div>
+                  );
+                })}
               </Document>
             </div>
           )}
@@ -453,9 +567,9 @@ export function Presentation() {
       {/* PAGE NAVIGATOR (TOP RIGHT) */}
       <div className="fixed top-8 right-8 flex items-center gap-4 z-30">
         <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-full px-4 py-2 flex items-center gap-3 shadow-xl backdrop-blur-md">
-           <button onClick={() => navigateToPage({page: activePage - 1})} className="p-1 hover:text-blue-500"><ChevronLeft size={20}/></button>
+           <button onClick={() => handleNavigate(activePage - 1)} className="p-1 hover:text-blue-500"><ChevronLeft size={20}/></button>
            <span className="text-xs font-mono font-bold w-12 text-center text-slate-400">{activePage} / {numPages}</span>
-           <button onClick={() => navigateToPage({page: activePage + 1})} className="p-1 hover:text-blue-500"><ChevronRight size={20}/></button>
+           <button onClick={() => handleNavigate(activePage + 1)} className="p-1 hover:text-blue-500"><ChevronRight size={20}/></button>
         </div>
       </div>
 

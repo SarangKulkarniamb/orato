@@ -1,97 +1,137 @@
+import re
+import string
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 
-def load_vector_db():
+def load_vector_db(doc_id):
+    """Loads the specific vector database for the requested document."""
     embedding_model = HuggingFaceEmbeddings(
         model_name="all-MiniLM-L6-v2"
     )
-
     vector_db = Chroma(
-        collection_name="ppt_assistant",
-        persist_directory="db/chroma",
+        collection_name=f"doc_{doc_id}",
+        persist_directory=f"db/chroma/{doc_id}",
         embedding_function=embedding_model
     )
-
     return vector_db
 
+def parse_command(query):
+    """Parses queries and intercepts global UI commands before they hit the database."""
+    # 1. Clean query of punctuation (STT adds periods that break exact matching)
+    query_lower = query.lower().strip()
+    query_lower = re.sub(r'[^\w\s]', '', query_lower)
+    
+    # ---------------------------------------------------------
+    # 1. DIRECT UI COMMANDS (Bypass Vector DB entirely)
+    # ---------------------------------------------------------
+    if any(w in query_lower for w in ["clear", "reset", "remove"]):
+        return {"intent": "clear", "is_direct": True}
+        
+    if "zoom in" in query_lower:
+        return {"intent": "zoom_in", "is_direct": True}
+        
+    if "zoom out" in query_lower:
+        return {"intent": "zoom_out", "is_direct": True}
+        
+    if any(w in query_lower for w in ["next page", "next slide"]):
+        return {"intent": "next", "is_direct": True}
+        
+    if any(w in query_lower for w in ["previous page", "previous slide", "go back"]):
+        return {"intent": "prev", "is_direct": True}
 
-def detect_intent(query):
-    query = query.lower()
+    # ---------------------------------------------------------
+    # 2. PURE NAVIGATION (e.g., "go to page number 5")
+    # ---------------------------------------------------------
+    target_slide = None
+    
+    # Updated regex to gracefully handle "page 6" AND "page number 6"
+    slide_match = re.search(r'(?:slide|page)\s+(?:number\s+)?(\d+)', query_lower)
+    
+    if slide_match:
+        target_slide = int(slide_match.group(1))
+        
+        # Remove the exact navigation phrase to see what's left
+        remainder = re.sub(r'(?:on\s+|go\s+to\s+)?(?:slide|page)\s+(?:number\s+)?\d+', '', query_lower).strip()
+        
+        # If the remaining words are just fluff, it's a pure UI navigation command
+        nav_fluff = ["go", "to", "move", "navigate", "open", "show", "me", "please", "can", "you", "lets", "let", "look", "at", "number"]
+        clean_remainder = [w for w in remainder.split() if w not in nav_fluff]
+        
+        if not clean_remainder:
+            return {"intent": "navigate", "target_slide": target_slide, "is_direct": True}
 
-    if any(word in query for word in [
-        "zoom", "focus", "look at", "show", "see", "display"
-    ]):
-        return "zoom"
+    # ---------------------------------------------------------
+    # 3. CONTEXTUAL SEARCH (Requires Vector DB)
+    # ---------------------------------------------------------
+    intent = "navigate" # Default contextual action
+    
+    if "highlight" in query_lower:
+        intent = "highlight"
+    elif "zoom" in query_lower: 
+        intent = "zoom"
+    elif any(w in query_lower for w in ["inspect", "extract", "details"]):
+        intent = "inspect"
 
-    if any(word in query for word in [
-        "figure", "diagram", "graph", "flowchart", "image"
-    ]):
-        return "zoom"
-
-    if any(word in query for word in [
-        "highlight", "mark", "underline"
-    ]):
-        return "highlight"
-
-    if any(word in query for word in [
-        "go to", "move to", "open"
-    ]):
-        return "navigate"
-
-    return "search"
-
-
-def filter_results(results, intent):
-    if intent == "zoom":
-        results = [r for r in results if r.metadata["type"] == "image"] or results
-
-    elif intent == "highlight":
-        results = [r for r in results if r.metadata["type"] == "text"] or results
-
-    return results
-
+    # Strip conversational filler before sending to the database
+    stop_words = ["zoom", "into", "highlight", "show", "me", "the", "go", "to", "move", "look", "at", "inspect", "see", "lets", "let", "can", "we", "navigate", "find", "where", "is", "please", "number"]
+    clean_query = " ".join([word for word in query_lower.split() if word not in stop_words])
+    
+    if not clean_query.strip():
+        clean_query = query # fallback
+        
+    return {
+        "intent": intent,
+        "clean_query": clean_query,
+        "target_slide": target_slide,
+        "is_direct": False
+    }
 
 def retrieve(query, vector_db, k=5):
-    intent = detect_intent(query)
+    parsed = parse_command(query)
+    intent = parsed["intent"]
 
-    results = vector_db.similarity_search(query, k=k)
+    # --- Direct Actions Fast-Path ---
+    if parsed.get("is_direct"):
+        return {
+            "intent": intent,
+            "slide": parsed.get("target_slide"), 
+            "bbox": [0, 0, 0, 0],
+            "type": "control",
+            "content": f"Executing UI command: {intent}",
+            "section": "general",
+            "title": "Control Command",
+            "imageInd": 0 
+        }
 
-    results = filter_results(results, intent)
+    # --- Vector Search Slow-Path ---
+    clean_query = parsed["clean_query"]
+    target_slide = parsed["target_slide"]
+    
+    filter_dict = {"slide": target_slide} if target_slide else None
+    results = vector_db.similarity_search(clean_query, k=k, filter=filter_dict)
 
     if not results:
         return None
 
-    best = results[0]
+    # Filter based on intent
+    if intent in ["zoom", "inspect"]:
+        filtered = [r for r in results if r.metadata.get("type") == "image"]
+        results = filtered if filtered else results
+    elif intent == "highlight":
+        filtered = [r for r in results if r.metadata.get("type") == "text"]
+        results = filtered if filtered else results
 
-    response = {
+    best = results[0]
+    meta_id = best.metadata.get("id", "obj_0")
+    image_ind = int(meta_id.split("_")[-1]) if meta_id.startswith("obj_") else 0
+
+    return {
         "intent": intent,
         "content": best.page_content,
         "slide": best.metadata["slide"],
-        "bbox": best.metadata["bbox"],
-        "type": best.metadata["type"],
+        "bbox": best.metadata.get("bbox", [0, 0, 0, 0]),
+        "type": best.metadata.get("type", "text"),
         "section": best.metadata.get("section", "general"),
-        "title": best.metadata.get("title")
+        "title": best.metadata.get("title", "Untitled"),
+        "imageInd": image_ind
     }
-
-    return response
-
-
-if __name__ == "__main__":
-    vector_db = load_vector_db()
-
-    while True:
-        query = input("\nEnter query: ")
-
-        result = retrieve(query, vector_db)
-
-        if result:
-            print("\n--- RESULT ---")
-            print(f"Intent   : {result['intent']}")
-            print(f"Slide    : {result['slide']}")
-            print(f"Type     : {result['type']}")
-            print(f"Section  : {result['section']}")
-            print(f"BBOX     : {result['bbox']}")
-            print(f"Title    : {result['title']}")
-            print(f"Content  : {result['content'][:200]}...")
-        else:
-            print("No result found")

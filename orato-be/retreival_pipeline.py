@@ -85,51 +85,111 @@ def parse_command(query):
         "target_slide": target_slide,
         "is_direct": False
     }
+def merge_bboxes(bboxes):
+    if not bboxes:
+        return [0,0,0,0]
 
-def retrieve(query, vector_db, k=5):
+    x_min = min(b[0] for b in bboxes)
+    y_min = min(b[1] for b in bboxes)
+
+    x_max = max(b[0] + b[2] for b in bboxes)
+    y_max = max(b[1] + b[3] for b in bboxes)
+
+    return [
+        x_min,
+        y_min,
+        x_max - x_min,
+        y_max - y_min
+    ]
+
+
+def retrieve(query, vector_db, k=8, current_slide=None):
     parsed = parse_command(query)
     intent = parsed["intent"]
 
-    # --- Direct Actions Fast-Path ---
+    # ---------------------------
+    # DIRECT COMMAND FAST PATH
+    # ---------------------------
     if parsed.get("is_direct"):
         return {
             "intent": intent,
-            "slide": parsed.get("target_slide"), 
+            "slide": parsed.get("target_slide"),
             "bbox": [0, 0, 0, 0],
             "type": "control",
             "content": f"Executing UI command: {intent}",
             "section": "general",
             "title": "Control Command",
-            "imageInd": 0 
+            "imageInd": 0
         }
 
-    # --- Vector Search Slow-Path ---
     clean_query = parsed["clean_query"]
     target_slide = parsed["target_slide"]
-    
+
     filter_dict = {"slide": target_slide} if target_slide else None
-    results = vector_db.similarity_search(clean_query, k=k, filter=filter_dict)
+
+    results = vector_db.similarity_search(
+        clean_query,
+        k=k,
+        filter=filter_dict
+    )
 
     if not results:
         return None
 
-    # Filter based on intent
+    # ---------------------------
+    # Intent filtering
+    # ---------------------------
     if intent in ["zoom", "inspect"]:
         filtered = [r for r in results if r.metadata.get("type") == "image"]
         results = filtered if filtered else results
+
     elif intent == "highlight":
         filtered = [r for r in results if r.metadata.get("type") == "text"]
         results = filtered if filtered else results
 
-    best = results[0]
+    # ---------------------------
+    # Determine which slide to focus on
+    # ---------------------------
+    if target_slide:
+        focus_slide = target_slide
+    elif current_slide:
+        focus_slide = current_slide
+    else:
+        focus_slide = results[0].metadata["slide"]
+
+    # ---------------------------
+    # Filter results to focus slide
+    # ---------------------------
+    slide_results = [
+        r for r in results if r.metadata.get("slide") == focus_slide
+    ]
+
+    # If no matches on current slide, fallback to best global result
+    if not slide_results:
+        slide_results = [results[0]]
+
+    # ---------------------------
+    # Merge bbox of top semantic matches
+    # ---------------------------
+    top_results = slide_results[:3]
+
+    bboxes = [
+        r.metadata.get("bbox", [0, 0, 0, 0])
+        for r in top_results
+    ]
+
+    merged_bbox = merge_bboxes(bboxes)
+
+    best = top_results[0]
+
     meta_id = best.metadata.get("id", "obj_0")
     image_ind = int(meta_id.split("_")[-1]) if meta_id.startswith("obj_") else 0
 
     return {
         "intent": intent,
         "content": best.page_content,
-        "slide": best.metadata["slide"],
-        "bbox": best.metadata.get("bbox", [0, 0, 0, 0]),
+        "slide": focus_slide,
+        "bbox": merged_bbox,
         "type": best.metadata.get("type", "text"),
         "section": best.metadata.get("section", "general"),
         "title": best.metadata.get("title", "Untitled"),

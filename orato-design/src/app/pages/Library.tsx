@@ -27,7 +27,6 @@ export function Library() {
   const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 1. Fetch documents and user profile on mount
   useEffect(() => {
     if (!token) {
       navigate("/auth");
@@ -36,13 +35,11 @@ export function Library() {
 
     const initLibrary = async () => {
       try {
-        // Fetch User Profile if not in store
         if (!storedUser) {
           const userRes = await api.get("/auth/me");
           setUserAction(userRes.data);
         }
 
-        // Fetch Documents from Backend
         const docsRes = await api.get("/auth/my-docs");
         const formattedDocs = docsRes.data.map((doc: any) => ({
           id: doc.id,
@@ -50,7 +47,7 @@ export function Library() {
           dateAdded: new Date(doc.uploaded_at).toLocaleDateString("en-US", { 
             month: "short", day: "numeric", year: "numeric" 
           }),
-          thumbnail: "#3b82f6", // Default color, or generate based on ID
+          thumbnail: "#3b82f6", 
           url: doc.url
         }));
         setDocuments(formattedDocs);
@@ -73,7 +70,6 @@ export function Library() {
     fileInputRef.current?.click();
   };
 
-  // 2. Real API Upload Handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -88,17 +84,17 @@ export function Library() {
 
     setIsUploading(true);
     try {
+      // The frontend will now wait here until ingestion.py finishes completely!
       const response = await api.post("/auth/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      // Add the new doc to state immediately
       const newDoc: Document = {
         id: response.data.id,
         title: response.data.filename,
         dateAdded: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         thumbnail: "#3b82f6",
-        url: `http://127.0.0.1:8000/uploads/${response.data.filename}` // Construct local URL
+        url: `http://127.0.0.1:8000/uploads/${response.data.filename}` 
       };
       
       setDocuments((prev) => [newDoc, ...prev]);
@@ -107,12 +103,25 @@ export function Library() {
       alert("Failed to upload document");
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = ""; // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = ""; 
     }
   };
 
   const handlePresent = (docId: string) => {
     navigate(`/presentation/${docId}`);
+  };
+
+  const handleDelete = async (docId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); 
+    if (!window.confirm("Are you sure you want to delete this presentation?")) return;
+
+    try {
+      await api.delete(`/auth/delete-doc/${docId}`);
+      setDocuments((prev) => prev.filter((doc) => doc.id !== docId));
+    } catch (error) {
+      console.error("Delete failed", error);
+      alert("Failed to delete document");
+    }
   };
 
   if (isLoading || !storedUser) {
@@ -125,7 +134,6 @@ export function Library() {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      {/* Top Bar */}
       <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-white">Orato</h1>
@@ -134,18 +142,13 @@ export function Library() {
             <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
               {storedUser.email[0].toUpperCase()}
             </div>
-            <button
-              onClick={handleLogout}
-              className="text-slate-400 hover:text-white transition-colors p-2"
-              title="Logout"
-            >
+            <button onClick={handleLogout} className="text-slate-400 hover:text-white transition-colors p-2" title="Logout">
               <LogOut className="w-5 h-5" />
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="mb-8 flex justify-between items-end">
           <div>
@@ -154,7 +157,6 @@ export function Library() {
           </div>
         </div>
 
-        {/* Document Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {/* Upload Card */}
           <motion.div
@@ -168,7 +170,7 @@ export function Library() {
             </div>
             <div className="text-center">
               <p className="text-white font-semibold mb-1">
-                {isUploading ? "Uploading..." : "Upload New Presentation"}
+                {isUploading ? "Processing AI Data..." : "Upload New Presentation"}
               </p>
               <p className="text-slate-500 text-sm">Select a PDF file</p>
             </div>
@@ -193,14 +195,12 @@ export function Library() {
               onMouseLeave={() => setHoveredDoc(null)}
               className="aspect-[3/4] rounded-xl bg-slate-900 border border-slate-800 overflow-hidden cursor-pointer group relative"
             >
-              {/* Thumbnail Area */}
               <div 
                 className="h-3/4 flex items-center justify-center relative bg-slate-800"
                 style={{ background: `linear-gradient(135deg, ${doc.thumbnail}, ${doc.thumbnail}dd)` }}
               >
                 <FileText className="w-20 h-20 text-white/30" />
                 
-                {/* Overlay UI */}
                 {hoveredDoc === doc.id && (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -211,14 +211,23 @@ export function Library() {
                       whileHover={{ scale: 1.1 }}
                       onClick={() => handlePresent(doc.id)}
                       className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-2xl transition-colors"
+                      title="Present"
                     >
                       <Play className="w-8 h-8 fill-white" />
+                    </motion.button>
+                    
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      onClick={(e) => handleDelete(doc.id, e)}
+                      className="bg-red-600 hover:bg-red-700 text-white rounded-full p-4 shadow-2xl transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-8 h-8" />
                     </motion.button>
                   </motion.div>
                 )}
               </div>
 
-              {/* Info Section */}
               <div className="h-1/4 p-4 bg-slate-900 border-t border-slate-800 flex flex-col justify-center">
                 <h3 className="text-white font-semibold truncate mb-1">{doc.title}</h3>
                 <p className="text-slate-500 text-sm">{doc.dateAdded}</p>
@@ -227,7 +236,6 @@ export function Library() {
           ))}
         </div>
 
-        {/* Empty State */}
         {documents.length === 0 && !isUploading && (
           <div className="mt-24 text-center">
             <div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-800">

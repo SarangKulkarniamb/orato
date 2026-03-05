@@ -79,6 +79,16 @@ export function Presentation() {
   // Sync ref with state for accurate next/prev websocket commands
   useEffect(() => { activePageRef.current = activePage; }, [activePage]);
 
+  // --- NEW: BROADCAST STATE TO BACKEND ---
+  useEffect(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "state_update",
+        activePage: activePage
+      }));
+    }
+  }, [activePage, isConnected]);
+
   useEffect(() => {
     const token = useAuthStore.getState().token || localStorage.getItem("token");
     if (!token) { navigate("/auth"); return; }
@@ -147,9 +157,7 @@ export function Presentation() {
       if (index >= 0 && index < imageRefs.length) {
         const imgObj = await pdfPage.objs.get(imageRefs[index]);
         const url = convertRawDataToUrl(imgObj);
-        if (url) {
-          setModalImage(url);
-        }
+        if (url) setModalImage(url);
       }
     } catch (e) { console.error("Error extracting image:", e); }
   }, [pdfDocument, convertRawDataToUrl]);
@@ -262,48 +270,22 @@ export function Presentation() {
         const textData = msg.content || msg.Content || msg.text || msg.Text;
 
         switch (intent) {
-          // New Direct UI Commands
-          case "zoom_in":
-            setZoomLevel(z => Math.min(z + 0.3, 4));
-            break;
-          case "zoom_out":
-            setZoomLevel(z => Math.max(z - 0.3, 0.4));
-            break;
-          case "next":
-            handlers.navigate(activePageRef.current + 1);
-            break;
-          case "prev":
-            handlers.navigate(activePageRef.current - 1);
-            break;
-
-          // Contextual Commands
+          case "zoom_in": setZoomLevel(z => Math.min(z + 0.3, 4)); break;
+          case "zoom_out": setZoomLevel(z => Math.max(z - 0.3, 0.4)); break;
+          case "next": handlers.navigate(activePageRef.current + 1); break;
+          case "prev": handlers.navigate(activePageRef.current - 1); break;
           case "navigate": 
-          case "search": 
-            if (slide) handlers.navigate(slide); 
-            break;
-          case "highlight": 
-            if (slide && bbox) handlers.highlight(slide, bbox, type);
-            break;
-          case "zoom": 
-            if (slide && bbox) handlers.zoom(slide, bbox, type);
-            break;
-          case "inspect": 
-            if (slide && bbox) handlers.inspect(slide, bbox, imageInd);
-            break;
-          case "clear": 
-            handlers.clear(); 
-            break;
-          case "speech": 
-            if (textData) handlers.transcriptUpdater(textData); 
-            break;
+          case "search": if (slide) handlers.navigate(slide); break;
+          case "highlight": if (slide && bbox) handlers.highlight(slide, bbox, type); break;
+          case "zoom": if (slide && bbox) handlers.zoom(slide, bbox, type); break;
+          case "inspect": if (slide && bbox) handlers.inspect(slide, bbox, imageInd); break;
+          case "clear": handlers.clear(); break;
+          case "speech": if (textData) handlers.transcriptUpdater(textData); break;
         }
       } catch (e) {}
     };
     
-    return () => { 
-      ws.close(); 
-      wsRef.current = null; 
-    };
+    return () => { ws.close(); wsRef.current = null; };
   }, [id]);
 
   // =====================================================================
@@ -383,9 +365,8 @@ export function Presentation() {
       }
     };
 
-    if (isListening && clientId) {
-      startRecording();
-    } else {
+    if (isListening && clientId) startRecording();
+    else {
       stopRecording();
       setTranscript(prev => prev === "Listening..." ? "System Ready" : prev);
     }
@@ -528,8 +509,6 @@ export function Presentation() {
                       
                       {/* BBOX OVERLAYS */}
                       {pageBboxes.map((box) => {
-                        // --- FIXED MATH ---
-                        // Python parser returns [x, y, width, height], NOT [x1, y1, x2, y2]
                         const left = box.bbox[0] * 100;
                         const top = box.bbox[1] * 100;
                         const width = box.bbox[2] * 100;

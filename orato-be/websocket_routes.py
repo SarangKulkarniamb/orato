@@ -1,18 +1,21 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict
-from retreival_pipeline  import retrieve, load_vector_db # Ensure it imports from query.py
 import json
 import wave
-
 from google.cloud.speech_v1 import SpeechAsyncClient
 from google.cloud.speech_v1.types import (
     RecognitionConfig,
     StreamingRecognitionConfig,
     StreamingRecognizeRequest
 )
+from retreival_pipeline import retrieve, load_vector_db
 
 websocket_router = APIRouter()
+
 active_connections: Dict[str, WebSocket] = {}
+
+# --- NEW: MEMORY STORE FOR CLIENT STATES ---
+client_states: Dict[str, dict] = {}
 
 @websocket_router.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str, token: str = None):
@@ -33,59 +36,52 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str, token: str = 
 
     await websocket.accept()
     active_connections[client_id] = websocket
+    
+    # Initialize state for this client
+    client_states[client_id] = {"active_page": 1}
+    
     print(f"✅ Client '{client_id}' Connected. Total: {len(active_connections)}")
 
     try:
         while True:
             data = await websocket.receive_text()
+            
             if data == "ping":
                 await websocket.send_text("pong")
                 continue
 
-            print(f"Received from {client_id}: {data}")
-            for i, sock in active_connections.items():
-                await sock.send_text(f"Echo: {data}")
+            # --- PARSE INCOMING STATE UPDATES ---
+            try:
+                message = json.loads(data)
+                if message.get("type") == "state_update":
+                    new_page = message.get("activePage", 1)
+                    client_states[client_id]["active_page"] = new_page
+                    print(f"🔄 Client {client_id} moved to slide {new_page}")
+                    continue # Skip sending this back as an echo
+            except json.JSONDecodeError:
+                pass
 
     except WebSocketDisconnect:
         if client_id in active_connections:
             del active_connections[client_id]
+        if client_id in client_states:
+            del client_states[client_id]
         print(f"❌ Client '{client_id}' Disconnected")
 
-
-@websocket_router.post("/simulate-speech/{client_id}")
-async def simulate_speech(client_id: str, message: str):
-    target_socket = active_connections.get(client_id)
-    if not target_socket:
-        return {"status": "error", "message": f"User {client_id} not connected"}
-
-    try:
-        real_payload = json.loads(message)
-    except json.JSONDecodeError:
-        real_payload = {"type": "speech", "text": message}
-
-    await target_socket.send_json(real_payload)
-    return {"status": "success", "message": f"Sent to {client_id}"}
-
-
-# =====================================================================
-# GOOGLE CLOUD SPEECH-TO-TEXT WEBSOCKET (Backend Terminal Only)
-# =====================================================================
 
 @websocket_router.websocket("/ws/stt/{client_id}")
 async def stt_endpoint(websocket: WebSocket, client_id: str):
     await websocket.accept()
     print(f"🎤 STT Audio stream connected for {client_id}")
 
-    # --- 🔥 DYNAMIC DATABASE LOADING 🔥 ---
-    # Parse doc_id from frontend client_id (format: "user_id_doc_id")
     parts = client_id.split("_")
     doc_id = parts[-1] if len(parts) > 1 else client_id
     
     try:
         session_vector_db = load_vector_db(doc_id)
-        print(f"📚 Successfully loaded Vector DB context for Document: {doc_id}")
+        print(f"📚 Successfully loaded Vector DB for: {doc_id}")
     except Exception as e:
-        print(f"⚠️ Warning: Could not load Vector DB for {doc_id}. Did ingestion fail? Error: {e}")
+        print(f"⚠️ Warning: Could not load Vector DB: {e}")
         session_vector_db = None
 
     client = SpeechAsyncClient()
@@ -103,45 +99,38 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
 
     async def audio_generator():
         yield StreamingRecognizeRequest(streaming_config=streaming_config)
-        print("🚀 Stream config sent. Listening for audio chunks...")
         try:
             while True:
                 data = await websocket.receive_bytes()
                 yield StreamingRecognizeRequest(audio_content=data)
         except WebSocketDisconnect:
             pass 
-        except Exception as e:
-            print(f"⚠️ Audio generator error: {e}")
 
     try:
         requests = audio_generator()
         responses = await client.streaming_recognize(requests=requests)
         
-        print("🎧 Connected to Google ML. Waiting for words...")
-
         async for response in responses:
-            if not response.results:
-                continue
-
+            if not response.results: continue
             result = response.results[0]
-            if not result.alternatives:
-                continue
+            if not result.alternatives: continue
 
             transcript = result.alternatives[0].transcript
             
             if result.is_final:
                 print(f"✅ [FINAL]: {transcript}")
                 
-                # --- Execute Query using Document-Specific DB ---
                 if session_vector_db:
-                    action_response = retrieve(transcript, session_vector_db)
+                    # --- FETCH STATE AND PASS IT TO RETRIEVE ---
+                    user_state = client_states.get(client_id, {})
+                    current_slide = user_state.get("active_page", 1)
+
+                    action_response = retrieve(transcript, session_vector_db, current_slide=current_slide)
                     
                     if action_response:
                         print(f"🎯 Action: {action_response}")
                         target_socket = active_connections.get(client_id)
-                        
                         if target_socket:
-                            # Forward exact UI commands to the frontend via WebSocket
                             await target_socket.send_json({
                                 "type": "action",
                                 "intent": action_response["intent"],
@@ -151,8 +140,6 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
                                 "title": action_response["title"],
                                 "imageInd": action_response.get("imageInd", 0)
                             })
-                else:
-                    print("⚠️ Context not loaded, cannot search vector DB.")
             else:
                 print(f"⏳ [INTERIM]: {transcript}")
 

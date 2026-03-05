@@ -4,7 +4,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# Assumes your parsing.py (provided earlier) is in the same directory
+# Assumes your parsing.py is in the same directory
 from parsing import parse_ppt, parse_pdf
 
 def load_file(file_path):
@@ -70,21 +70,40 @@ def convert_to_documents(parsed_data):
 
     return documents
 
+
 def chunk_documents(documents):
+    """Chunks text while injecting the slide title into split orphans for semantic retention."""
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=300,
+        chunk_size=350, # Slightly larger to fit full context
         chunk_overlap=50
     )
     chunked_docs = []
+    
     for doc in documents:
+        # 1. If text is short, keep it whole (preserves the exact bounding box logic better)
+        if len(doc.page_content) <= 350:
+            chunked_docs.append(doc)
+            continue
+            
+        # 2. If it's too long, split it, but explicitly keep the semantic context
         splits = splitter.split_text(doc.page_content)
-        for chunk in splits:
+        title = doc.metadata.get("title", "")
+        
+        for i, chunk in enumerate(splits):
+            # Re-inject the title into the chunk if it got split away
+            if i > 0 and title and title not in chunk:
+                chunk_with_context = f"Slide Topic - {title}:\n{chunk}"
+            else:
+                chunk_with_context = chunk
+                
             new_doc = Document(
-                page_content=chunk,
+                page_content=chunk_with_context,
                 metadata=doc.metadata   
             )
             chunked_docs.append(new_doc)
+            
     return chunked_docs
+
 
 def create_vector_db(documents, doc_id):
     """Creates a unique vector DB in an isolated folder for the specific document."""
@@ -114,6 +133,10 @@ def process_document_pipeline(file_path: str, doc_id: str):
         chunked_docs = chunk_documents(documents)
         print(f"✂️ Documents after chunking: {len(chunked_docs)}")
         
+        if not chunked_docs:
+            print(f"⚠️ Warning: No extractable text or images found in {file_path}. Skipping Vector DB creation.")
+            return
+
         create_vector_db(chunked_docs, doc_id)
         print(f"🎉 Finished ingestion for doc: {doc_id}")
     except Exception as e:

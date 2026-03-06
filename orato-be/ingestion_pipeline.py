@@ -55,7 +55,8 @@ def convert_to_documents(parsed_data):
                 documents.append(doc)
 
             elif obj["type"] == "image":
-                content = f"{title} diagram"
+                # Ensure the AI-generated caption or slide context is actually searchable text
+                content = f"{title}\n{obj['text']}"
                 doc = Document(
                     page_content=content,
                     metadata={
@@ -63,7 +64,9 @@ def convert_to_documents(parsed_data):
                         "title": str(title),
                         "section": "image",
                         "bbox": list(obj["bbox"]),
-                        "type": "image"
+                        "type": "image",
+                        # Pass the image index so the frontend modal knows what to open
+                        "image_ind": obj.get("image_ind", 0)
                     }
                 )
                 documents.append(doc)

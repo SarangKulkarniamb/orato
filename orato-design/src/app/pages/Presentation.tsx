@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Mic, MicOff, ArrowLeft, Maximize2, Wifi, WifiOff, FileText, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Document, Page, pdfjs } from "react-pdf";
 import useAuthStore from "../store/authStore";
 import api from "../api/api";
@@ -14,29 +14,34 @@ const staticStyles = `
   ::selection { background: rgba(59, 130, 246, 0.3); }
   .pdf-page-container { margin-bottom: 60px; position: relative; transition: transform 0.4s ease; }
   .active-page { outline: 2px solid rgba(59, 130, 246, 0.5); border-radius: 4px; }
-  .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
   .custom-scrollbar::-webkit-scrollbar-track { background: #0a0a0a; }
   .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
   
+  /* ALL HIGHLIGHTS NOW PULSE! Uses CSS variables for dynamic colors */
   @keyframes pulse-border {
-    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-    70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    0% { box-shadow: 0 0 0 0 var(--shadow-color); }
+    70% { box-shadow: 0 0 0 15px rgba(0,0,0,0); }
+    100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
   }
   .bbox-highlight {
     position: absolute;
-    border-radius: 4px;
+    border-radius: 6px;
     pointer-events: none;
     transition: all 0.3s ease-in-out;
     z-index: 10;
+    border-width: 3px;
+    border-style: solid;
+    animation: pulse-border 2s infinite;
   }
 `;
 
 type BboxOverlay = {
   id: string;
   bbox: number[]; 
-  color: string;
-  isInspect?: boolean;
+  bgColor: string;
+  borderColor: string;
+  shadowColor: string;
 };
 
 export function Presentation() {
@@ -76,10 +81,8 @@ export function Presentation() {
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
 
-  // Sync ref with state for accurate next/prev websocket commands
   useEffect(() => { activePageRef.current = activePage; }, [activePage]);
 
-  // --- NEW: BROADCAST STATE TO BACKEND ---
   useEffect(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
@@ -171,47 +174,51 @@ export function Presentation() {
     }
   }, [numPages]);
 
-  const handleHighlight = useCallback((slide: number, bbox: number[], type = "text", isInspect = false) => {
+  const handleHighlight = useCallback((slide: number, bbox: number[], type = "text") => {
     const overlayId = `bbox_${slide}_${Date.now()}`;
-    let color = "rgba(253, 224, 71, 0.4)"; 
-    if (isInspect) color = "rgba(239, 68, 68, 0.3)"; 
-    else if (type === "image") color = "rgba(59, 130, 246, 0.4)"; 
+    
+    // Dynamic styling based on content type, but ALWAYS pulsing
+    const bgColor = type === "image" ? "rgba(59, 130, 246, 0.2)" : "rgba(253, 224, 71, 0.2)";
+    const borderColor = type === "image" ? "rgba(59, 130, 246, 0.8)" : "rgba(253, 224, 71, 0.8)";
+    const shadowColor = type === "image" ? "rgba(59, 130, 246, 0.4)" : "rgba(253, 224, 71, 0.4)";
     
     setBboxes(prev => {
       const pageBoxes = prev[slide] || [];
-      return { ...prev, [slide]: [...pageBoxes, { id: overlayId, bbox, color, isInspect }] };
+      return { ...prev, [slide]: [...pageBoxes, { id: overlayId, bbox, bgColor, borderColor, shadowColor }] };
     });
     
     handleNavigate(slide);
+    return overlayId; // RETURN THE ID SO WE CAN TARGET IT
   }, [handleNavigate]);
 
   const handleZoom = useCallback((slide: number, bbox: number[], type = "image") => {
-    setZoomLevel(2.2); 
-    handleHighlight(slide, bbox, type); 
-    handleNavigate(slide);
+    setZoomLevel(2.5); 
+    const targetOverlayId = handleHighlight(slide, bbox, type); 
 
-    setTimeout(() => {
-      const overlaysOnPage = Object.values(bboxRefs.current);
-      const latestOverlay = overlaysOnPage[overlaysOnPage.length - 1];
-      if (latestOverlay) {
-        latestOverlay.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    const checkAndScroll = (attempts = 0) => {
+      const el = bboxRefs.current[targetOverlayId];
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      } else if (attempts < 15) {
+        setTimeout(() => checkAndScroll(attempts + 1), 100);
       }
-    }, 300);
-  }, [handleHighlight, handleNavigate]);
+    };
+    
+    setTimeout(() => checkAndScroll(), 300);
+
+  }, [handleHighlight]);
 
   const handleInspect = useCallback((slide: number, bbox: number[], imageInd?: number) => {
-    handleHighlight(slide, bbox, "image", true);
-    setZoomLevel(1.5);
+    // Inspect ONLY opens the modal now. It doesn't zoom or highlight.
     handleNavigate(slide);
-
     if (imageInd !== undefined && imageInd !== null) {
       extractAndShowImage(slide, imageInd);
     }
-  }, [handleHighlight, handleNavigate, extractAndShowImage]);
+  }, [handleNavigate, extractAndShowImage]);
 
   const handleClear = useCallback(() => {
     setBboxes({}); 
-    setModalImage(null); 
+    setModalImage(null); // Closes the modal on clear!
     setZoomLevel(1); 
     setTranscript("Cleared all effects");
   }, []);
@@ -484,7 +491,7 @@ export function Presentation() {
       </motion.div>
 
       {/* --- MAIN CONTENT AREA --- */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-[#0a0a0a] custom-scrollbar">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto bg-[#0a0a0a] custom-scrollbar">
         <div className="min-h-full w-full flex flex-col items-center py-24 px-8">
           {fileUrl && (
             <div ref={viewerRef} className="relative">
@@ -524,11 +531,10 @@ export function Presentation() {
                               top: `${top}%`,
                               width: `${width}%`,
                               height: `${height}%`,
-                              backgroundColor: box.color,
-                              border: box.isInspect ? '3px solid rgba(239, 68, 68, 0.8)' : '1px solid rgba(255,255,255,0.2)',
-                              boxShadow: box.isInspect ? '0 0 20px rgba(239, 68, 68, 0.4)' : 'none',
-                              animation: box.isInspect ? 'pulse-border 2s infinite' : 'none'
-                            }}
+                              backgroundColor: box.bgColor,
+                              borderColor: box.borderColor,
+                              '--shadow-color': box.shadowColor,
+                            } as React.CSSProperties}
                           />
                         );
                       })}
@@ -553,12 +559,27 @@ export function Presentation() {
       </div>
 
       {/* IMAGE MODAL */}
-      {modalImage && (
-        <div onClick={() => setModalImage(null)} className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-12 cursor-pointer backdrop-blur-md transition-all">
-          <motion.img initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} src={modalImage} className="max-w-[90%] max-h-[90%] rounded-xl shadow-2xl border border-white/5" />
-          <div className="absolute bottom-10 text-white/40 text-xs font-mono">Click to close</div>
-        </div>
-      )}
+      <AnimatePresence>
+        {modalImage && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setModalImage(null)} 
+            className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-12 cursor-pointer backdrop-blur-md"
+          >
+            <motion.img 
+              initial={{ scale: 0.8, y: 20 }} 
+              animate={{ scale: 1, y: 0 }} 
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              src={modalImage} 
+              className="max-w-[90%] max-h-[90%] rounded-xl shadow-[0_0_50px_rgba(59,130,246,0.3)] border border-white/10" 
+            />
+            <div className="absolute bottom-10 text-white/40 text-xs font-mono">Click or say "clear" to close</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

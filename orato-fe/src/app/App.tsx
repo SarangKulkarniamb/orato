@@ -1,10 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { Landing } from "./pages/Landing";
-import { Auth } from "./pages/Auth";
-import { Library } from "./pages/Library";
-import { ProtectedRoute } from "./components/ProtectedRoute";
+import { Landing } from "./pages/Landing.tsx";
+import { Auth } from "./pages/Auth.tsx";
+import { Library } from "./pages/Library.tsx";
+import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import { RedirectToDashboard } from "./components/RedirectToDashboardRouter.tsx";
-import { Presentation } from "./pages/Presentation";
+import { Presentation } from "./pages/Presentation.tsx";
 export default function App() {
   return (
     <BrowserRouter>

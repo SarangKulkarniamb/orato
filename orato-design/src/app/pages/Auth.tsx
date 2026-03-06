@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { motion } from "framer-motion"; 
-import { Mail, Lock, User, AlertCircle, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion"; 
+import { Mail, Lock, User, AlertCircle, Loader2, Mic } from "lucide-react";
 import api from "../api/api"; 
 import useAuthStore from "../store/authStore";
 
@@ -22,7 +22,8 @@ export function Auth() {
   // Zustand action
   const loginAction = useAuthStore((state) => state.login);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -94,75 +95,93 @@ export function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-6 py-12">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.1),transparent_50%)]"></div>
+    <div className="min-h-screen bg-[#080b14] text-white flex items-center justify-center px-6 py-12 relative overflow-hidden font-sans">
+      
+      {/* Ambient Glows (Matches Landing Page) */}
+      <div className="fixed inset-0 pointer-events-none flex items-center justify-center">
+        <div className="absolute w-[600px] h-[500px] bg-violet-600/[0.07] rounded-full blur-[120px]" />
+        <div className="absolute w-[400px] h-[300px] bg-cyan-500/[0.04] rounded-full blur-[100px] translate-y-24" />
+      </div>
 
       <motion.div 
-        className="relative w-full max-w-md"
+        className="relative z-10 w-full max-w-[420px]"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       >
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Orato</h1>
-          <p className="text-slate-400">
+        {/* Logo & Header */}
+        <div className="text-center mb-10">
+          <div className="w-12 h-12 bg-[#8b5cf6] rounded-2xl flex items-center justify-center shadow-lg shadow-violet-600/30 mx-auto mb-5">
+            <Mic className="w-6 h-6 text-white" />
+          </div>
+          <h1 className="text-[28px] font-bold text-white mb-2 tracking-tight">
             {mode === "login" ? "Welcome back" : "Create your account"}
+          </h1>
+          <p className="text-[15px] text-slate-400">
+            {mode === "login" ? "Enter your details to access your presentations." : "Start presenting hands-free today."}
           </p>
         </div>
 
         {/* Auth Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-[#0e1120] border border-white/[0.06] rounded-3xl p-8 shadow-2xl relative">
           
           {/* Error Message Display */}
-          {error && (
-            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center text-red-400 text-sm">
-              <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
-              <p>{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* Full Name Field - Only show on Signup */}
-            {mode === "signup" && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
+          <AnimatePresence>
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                animate={{ opacity: 1, height: "auto", marginBottom: 24 }}
+                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center text-red-400 text-sm overflow-hidden"
               >
-                <label htmlFor="fullName" className="block text-sm font-medium text-slate-300 mb-2">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                  <input
-                    id="fullName"
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-11 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
-                    placeholder="John Doe"
-                    required={mode === "signup"}
-                  />
-                </div>
+                <AlertCircle className="w-4 h-4 mr-2.5 flex-shrink-0" />
+                <p>{error}</p>
               </motion.div>
             )}
+          </AnimatePresence>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            
+            {/* Full Name Field - Only show on Signup */}
+            <AnimatePresence>
+              {mode === "signup" && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, overflow: "hidden" }}
+                  animate={{ opacity: 1, height: "auto", overflow: "visible" }}
+                  exit={{ opacity: 0, height: 0, overflow: "hidden" }}
+                >
+                  <label htmlFor="fullName" className="block text-[13px] font-medium text-slate-300 mb-2 mt-1">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" />
+                    <input
+                      id="fullName"
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full bg-[#080b14] border border-white/[0.08] hover:border-white/[0.15] rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
+                      placeholder="John Doe"
+                      required={mode === "signup"}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
-                Email
+              <label htmlFor="email" className="block text-[13px] font-medium text-slate-300 mb-2">
+                Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" />
                 <input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-11 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+                  className="w-full bg-[#080b14] border border-white/[0.08] hover:border-white/[0.15] rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
                   placeholder="you@example.com"
                   required
                 />
@@ -171,17 +190,17 @@ export function Auth() {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="password" className="block text-[13px] font-medium text-slate-300 mb-2">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" />
                 <input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-11 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+                  className="w-full bg-[#080b14] border border-white/[0.08] hover:border-white/[0.15] rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
                   placeholder="••••••••"
                   required
                   minLength={6}
@@ -193,52 +212,57 @@ export function Auth() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white rounded-lg py-3 font-semibold transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 flex items-center justify-center"
+              className="w-full bg-[#8b5cf6] hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl py-3.5 mt-2 font-medium transition-all shadow-lg shadow-violet-600/20 hover:shadow-violet-600/40 flex items-center justify-center gap-2.5"
             >
               {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Processing...</span>
+                </>
               ) : (
                 mode === "login" ? "Sign In" : "Create Account"
               )}
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-800"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-slate-900 text-slate-500">Or continue with</span>
-            </div>
-          </div>
-
           {/* Toggle Mode */}
-          <div className="mt-6 text-center">
+          <div className="mt-7 pt-6 border-t border-white/[0.06] text-center">
             <button
               type="button"
               onClick={toggleMode}
-              className="text-slate-400 hover:text-white transition-colors"
+              className="text-[14px] text-slate-400 hover:text-white transition-colors"
             >
               {mode === "login" ? (
-                <>Don't have an account? <span className="text-blue-500">Sign up</span></>
+                <>Don't have an account? <span className="text-violet-400 font-medium ml-1 hover:text-violet-300">Sign up</span></>
               ) : (
-                <>Already have an account? <span className="text-blue-500">Sign in</span></>
+                <>Already have an account? <span className="text-violet-400 font-medium ml-1 hover:text-violet-300">Sign in</span></>
               )}
             </button>
           </div>
         </div>
 
         {/* Back to Home */}
-        <div className="mt-6 text-center">
+        <div className="mt-8 text-center">
           <button
             onClick={() => navigate("/")}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-[13px] text-slate-500 hover:text-slate-300 transition-colors flex items-center justify-center gap-1.5 mx-auto"
           >
-            ← Back to home
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            Back to home
           </button>
         </div>
       </motion.div>
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+

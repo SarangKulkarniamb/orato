@@ -18,7 +18,6 @@ const staticStyles = `
   .custom-scrollbar::-webkit-scrollbar-track { background: #0a0a0a; }
   .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
   
-  /* ALL HIGHLIGHTS NOW PULSE! Uses CSS variables for dynamic colors */
   @keyframes pulse-border {
     0% { box-shadow: 0 0 0 0 var(--shadow-color); }
     70% { box-shadow: 0 0 0 15px rgba(0,0,0,0); }
@@ -209,7 +208,6 @@ export function Presentation() {
   }, [handleHighlight]);
 
   const handleInspect = useCallback((slide: number, bbox: number[], imageInd?: number) => {
-    // Inspect ONLY opens the modal now. It doesn't zoom or highlight.
     handleNavigate(slide);
     if (imageInd !== undefined && imageInd !== null) {
       extractAndShowImage(slide, imageInd);
@@ -218,7 +216,7 @@ export function Presentation() {
 
   const handleClear = useCallback(() => {
     setBboxes({}); 
-    setModalImage(null); // Closes the modal on clear!
+    setModalImage(null);
     setZoomLevel(1); 
     setTranscript("Cleared all effects");
   }, []);

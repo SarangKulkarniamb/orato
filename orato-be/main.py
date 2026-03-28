@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import threading
 import uvicorn
 from fastapi.staticfiles import StaticFiles
 from http_routes import http_router
+from retreival_pipeline import warmup_command_llm
 from websocket_routes import websocket_router
 
 app = FastAPI()
@@ -17,6 +19,11 @@ app.add_middleware(
 
 app.include_router(http_router)
 app.include_router(websocket_router)
+
+
+@app.on_event("startup")
+def startup_event():
+    threading.Thread(target=warmup_command_llm, daemon=True).start()
 
 @app.get("/")
 def health_check():

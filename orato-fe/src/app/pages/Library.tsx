@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, FileText, Play, LogOut, Upload, Mic, MoreHorizontal, Trash2, Clock, Loader2 } from "lucide-react";
+import { Plus, FileText, Play, LogOut, Upload, Mic, MoreHorizontal, Trash2, Clock, Loader2, Calendar } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import useAuthStore from "../store/authStore";
 import api from "../api/api";
@@ -331,7 +331,7 @@ export function Library() {
                     <h3 className="text-[15px] font-semibold text-slate-100 truncate mb-1.5">{doc.title}</h3>
                     <div className="flex items-center gap-3 text-xs text-slate-500">
                       <span className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
+                        <Calendar className="w-3.5 h-3.5" />
                         {doc.dateAdded}
                       </span>
                       <span>PDF</span>

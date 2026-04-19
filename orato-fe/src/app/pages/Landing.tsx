@@ -153,7 +153,7 @@ export function Landing() {
               className="flex flex-wrap justify-center gap-6 text-sm text-slate-500"
               {...fadeUp(0.25)}
             >
-              {["Free forever", "No credit card", "Setup in 30 seconds"].map((item) => (
+              {["Real-time", "No credit card", "Setup in 30 seconds"].map((item) => (
                 <div key={item} className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#8b5cf6]" />
                   <span>{item}</span>

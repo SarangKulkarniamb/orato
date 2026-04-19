@@ -15,6 +15,7 @@ load_dotenv(Path(__file__).with_name(".env"))
 ALLOWED_INTENTS = {
     "navigate",
     "search",
+    "web_search",
     "highlight",
     "zoom",
     "inspect",
@@ -160,10 +161,12 @@ class LLMCommandReasoner:
                         "content": (
                             "You convert spoken presenter commands into structured JSON for a live slide controller. "
                             "Return only one JSON object with keys intent, direct_command, target_slide, search_query, target_type, confidence, refers_to_document. "
-                            "Allowed intents: navigate, search, highlight, zoom, inspect, next, prev, zoom_in, zoom_out, clear. "
+                            "Allowed intents: navigate, search, web_search, highlight, zoom, inspect, next, prev, zoom_in, zoom_out, clear. "
                             "Allowed target_type values: auto, text, image. "
                             "Use direct_command=true only for immediate UI controls like clear/next/prev/zoom_in/zoom_out, "
                             "or pure slide navigation with an explicit slide number and no semantic lookup needed. "
+                            "Use web_search when the speaker explicitly wants an internet lookup, says google/search the web/look this up/search this online, "
+                            "or wants external web information embedded next to the document. "
                             "Use inspect only when the speaker clearly wants to view or open a visual element such as a diagram, chart, figure, picture, graph, or image in more detail. "
                             "If the speaker is referring to ordinary slide text or concepts rather than explicitly asking to see a visual, do not use inspect. Prefer highlight or search instead. "
                             "If the speaker refers to something like 'this', 'here', 'current slide', or 'on this page', use the provided current slide context. "

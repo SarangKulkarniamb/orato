@@ -5,10 +5,13 @@ import shutil
 import os
 import asyncio # <-- IMPORT ASYNCIO
 from io import BytesIO
-from textwrap import wrap
+from urllib.parse import quote_plus, urlparse
 from bson import ObjectId
 from fastapi.responses import FileResponse, StreamingResponse
+import httpx
+from lxml import html
 from PIL import Image, ImageDraw, ImageFont
+from pydantic import BaseModel
 from pypdf import PdfReader
 from database import UserCollection, db
 from models import UserCreate, UserLogin, UserResponse, Token
@@ -24,6 +27,202 @@ http_router = APIRouter(prefix="/auth", tags=["Authentication"])
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 SUMMARY_REASONER = LLMCommandReasoner()
+WEB_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+
+
+class WebSearchRequest(BaseModel):
+    query: str
+
+
+def _normalize_search_query(query: str) -> str:
+    query = " ".join((query or "").strip().split())
+    lowered = query.lower()
+    for prefix in [
+        "go and search for",
+        "go and search",
+        "go search for",
+        "go search",
+        "search for",
+        "search",
+        "google this",
+        "search this online",
+        "search this on google",
+        "search this",
+        "look this up",
+        "google",
+        "search google for",
+        "search google",
+        "search the web for",
+        "search the web",
+        "search web for",
+        "search web",
+        "search online for",
+        "search online",
+        "look up",
+        "web search",
+    ]:
+        if lowered.startswith(prefix):
+            trimmed = query[len(prefix):].strip(" :,-")
+            return trimmed
+    return query
+
+
+def _build_session_search_context(doc_id: str, current_user: dict) -> dict:
+    primary_client_id = f"{current_user['id']}_{doc_id}"
+    fallback_client_id = f"client_{doc_id}"
+    return client_states.get(primary_client_id) or client_states.get(fallback_client_id) or {}
+
+
+def _resolve_contextual_web_query(raw_query: str, doc_title: str, session_state: dict) -> str:
+    normalized = _normalize_search_query(raw_query)
+    lowered = normalized.lower()
+    contextual_only = not normalized or lowered in {
+        "this",
+        "that",
+        "it",
+        "this topic",
+        "this concept",
+        "this diagram",
+        "this figure",
+        "this image",
+        "this architecture",
+    }
+    if not contextual_only:
+        return normalized
+
+    focus_text = " ".join(str(session_state.get("last_focus_text") or "").split())
+    if focus_text:
+        return focus_text[:220]
+
+    transcript_history = session_state.get("transcript_history") or []
+    if transcript_history:
+        return " ".join(transcript_history[-3:])[:220]
+
+    return Path(doc_title or "lecture topic").stem.replace("_", " ")
+
+
+async def _google_custom_search(query: str, max_results: int = 5) -> list[dict]:
+    api_key = os.getenv("GOOGLE_SEARCH_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    engine_id = os.getenv("GOOGLE_SEARCH_CX") or os.getenv("GOOGLE_SEARCH_ENGINE_ID")
+    if not api_key or not engine_id:
+        return []
+
+    params = {
+        "key": api_key,
+        "cx": engine_id,
+        "q": query,
+        "num": max(1, min(max_results, 10)),
+    }
+    headers = {"User-Agent": WEB_USER_AGENT}
+
+    async with httpx.AsyncClient(timeout=12.0, headers=headers, follow_redirects=True) as client:
+        response = await client.get("https://www.googleapis.com/customsearch/v1", params=params)
+        response.raise_for_status()
+        payload = response.json()
+
+    items = payload.get("items") or []
+    results = []
+    for item in items[:max_results]:
+        url = item.get("link")
+        if not url:
+            continue
+        host = urlparse(url).netloc.replace("www.", "")
+        results.append(
+            {
+                "title": item.get("title") or url,
+                "url": url,
+                "snippet": item.get("snippet") or "",
+                "displayHost": host,
+                "provider": "google",
+            }
+        )
+    return results
+
+
+async def _duckduckgo_search(query: str, max_results: int = 5) -> list[dict]:
+    headers = {"User-Agent": WEB_USER_AGENT}
+    search_url = f"https://duckduckgo.com/html/?q={quote_plus(query)}"
+
+    async with httpx.AsyncClient(timeout=12.0, headers=headers, follow_redirects=True) as client:
+        response = await client.get(search_url)
+        response.raise_for_status()
+        document = html.fromstring(response.text)
+
+    links = document.xpath("//a[contains(@class, 'result__a')]")
+    snippets = document.xpath("//*[contains(@class, 'result__snippet')]")
+    results: list[dict] = []
+
+    for index, link in enumerate(links[:max_results]):
+        url = link.get("href") or ""
+        title = " ".join(link.text_content().split())
+        snippet = " ".join(snippets[index].text_content().split()) if index < len(snippets) else ""
+        host = urlparse(url).netloc.replace("www.", "")
+        if not url:
+            continue
+        results.append(
+            {
+                "title": title or url,
+                "url": url,
+                "snippet": snippet,
+                "displayHost": host,
+                "provider": "duckduckgo",
+            }
+        )
+    return results
+
+
+async def _fetch_web_preview(url: str) -> str:
+    if not url.startswith("http"):
+        return ""
+
+    headers = {"User-Agent": WEB_USER_AGENT}
+    try:
+        async with httpx.AsyncClient(timeout=10.0, headers=headers, follow_redirects=True) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+    except Exception as exc:
+        print(f"Web preview fetch failed for {url}: {exc}")
+        return ""
+
+    content_type = response.headers.get("content-type", "")
+    if "html" not in content_type:
+        return ""
+
+    try:
+        document = html.fromstring(response.text)
+        for node in document.xpath("//script|//style|//noscript|//header|//footer|//nav|//aside|//form"):
+            parent = node.getparent()
+            if parent is not None:
+                parent.remove(node)
+        paragraphs = []
+        for node in document.xpath("//main//p | //article//p | //p"):
+            text = " ".join(node.text_content().split())
+            if len(text) >= 60:
+                paragraphs.append(text)
+            if len("\n\n".join(paragraphs)) > 2400:
+                break
+        return "\n\n".join(paragraphs[:6])[:2600]
+    except Exception as exc:
+        print(f"Web preview parsing failed for {url}: {exc}")
+        return ""
+
+
+async def _perform_web_search(query: str) -> tuple[str, list[dict]]:
+    try:
+        google_results = await _google_custom_search(query)
+        if google_results:
+            return "google", google_results
+    except Exception as exc:
+        print(f"Google custom search unavailable: {exc}")
+
+    try:
+        duck_results = await _duckduckgo_search(query)
+        if duck_results:
+            return "duckduckgo", duck_results
+    except Exception as exc:
+        print(f"DuckDuckGo search unavailable: {exc}")
+
+    return "none", []
 
 
 def _normalize_lines(value: str) -> list[str]:
@@ -335,6 +534,44 @@ async def export_lecture_summary_pdf(doc_id: str, current_user: dict = Depends(g
     export_name = f"{Path(doc['filename']).stem}_lecture_summary.pdf"
     headers = {"Content-Disposition": f'attachment; filename="{export_name}"'}
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
+
+
+@http_router.post("/web-search/{doc_id}")
+async def web_search_document_context(
+    doc_id: str,
+    request: WebSearchRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    doc = await db.documents.find_one({"_id": ObjectId(doc_id), "owner_id": current_user["id"]})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    session_state = _build_session_search_context(doc_id, current_user)
+    resolved_query = _resolve_contextual_web_query(request.query, doc["filename"], session_state)
+    provider, results = await _perform_web_search(resolved_query)
+
+    if not results:
+        return {
+            "mode": "search",
+            "provider": provider,
+            "query": resolved_query,
+            "results": [],
+            "selected": None,
+        }
+
+    enriched_results = []
+    for result in results[:5]:
+        preview_text = await _fetch_web_preview(result["url"])
+        enriched_results.append({**result, "previewText": preview_text})
+
+    selected = enriched_results[0]
+    return {
+        "mode": "search",
+        "provider": provider,
+        "query": resolved_query,
+        "results": enriched_results,
+        "selected": selected,
+    }
 
 import gc
 

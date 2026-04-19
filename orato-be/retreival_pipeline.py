@@ -33,6 +33,21 @@ VISUAL_INSPECT_VERBS = {
     "focus on",
 }
 
+WEB_SEARCH_PHRASES = {
+    "google",
+    "google this",
+    "search google",
+    "search the web",
+    "search web",
+    "search online",
+    "look up",
+    "look this up",
+    "look that up",
+    "web search",
+    "internet search",
+    "online search",
+}
+
 NAV_FLUFF = {
     "go",
     "to",
@@ -144,6 +159,10 @@ NON_HIGHLIGHT_INTENTS = {
     "zoom_in",
     "zoom_out",
     "inspect",
+    "web_search",
+    "search_mode",
+    "document_mode",
+    "open_result",
 }
 
 NON_HIGHLIGHT_QUERY_PHRASES = {
@@ -255,6 +274,8 @@ def _infer_target_type(intent: str, clean_query: str) -> str:
         return "text"
     if intent == "zoom":
         return "image" if has_image_keyword else "text"
+    if intent == "web_search":
+        return "auto"
     if has_image_keyword:
         return "image"
     return "auto"
@@ -269,6 +290,32 @@ def _build_direct_response(intent: str, target_slide=None):
         "content": f"Executing UI command: {intent}",
         "section": "general",
         "title": "Control Command",
+        "imageInd": 0,
+    }
+
+
+def _build_web_search_response(query: str, target_slide=None):
+    return {
+        "intent": "web_search",
+        "slide": target_slide,
+        "bbox": [0, 0, 0, 0],
+        "type": "web",
+        "content": query,
+        "section": "web",
+        "title": "Web Search",
+        "imageInd": 0,
+    }
+
+
+def _build_mode_response(intent: str):
+    return {
+        "intent": intent,
+        "slide": None,
+        "bbox": [0, 0, 0, 0],
+        "type": "control",
+        "content": "",
+        "section": "mode",
+        "title": "Viewer Mode",
         "imageInd": 0,
     }
 
@@ -307,6 +354,34 @@ def _has_visual_inspect_verb(query_lower: str) -> bool:
     return any(phrase in query_lower for phrase in VISUAL_INSPECT_VERBS)
 
 
+def _is_web_search_candidate(query: str) -> bool:
+    query_lower = _normalize_query(query)
+    semantic_terms = _semantic_terms(query)
+    if any(phrase in query_lower for phrase in WEB_SEARCH_PHRASES):
+        return True
+    if (
+        query_lower.startswith("search this")
+        or query_lower.startswith("search that")
+        or query_lower.startswith("search it")
+    ):
+        return True
+
+    search_verb_present = any(
+        phrase in query_lower
+        for phrase in [
+            " search ",
+            "search ",
+            "google ",
+            "look up ",
+            "lookup ",
+        ]
+    )
+    if search_verb_present and len(semantic_terms) >= 2:
+        return True
+
+    return False
+
+
 def _is_visual_inspect_candidate(query: str) -> bool:
     query_lower = _normalize_query(query)
     return _has_visual_reference(query_lower) and _has_visual_inspect_verb(query_lower)
@@ -325,6 +400,9 @@ def _is_probably_classroom_chatter(query: str) -> bool:
     query_lower = _normalize_query(query)
 
     if not query_lower:
+        return False
+
+    if _is_web_search_candidate(query):
         return False
 
     if _has_current_page_reference(query_lower) or _has_highlight_cue(query_lower) or _has_explicit_jump_phrase(query_lower):
@@ -381,11 +459,12 @@ def _has_explicit_document_signal(query: str, intent: str = "navigate", target_s
     return any(
         [
             bool(target_slide),
-            intent in {"highlight", "zoom", "inspect"},
+            intent in {"highlight", "zoom", "inspect", "web_search"},
             _has_current_page_reference(query_lower),
             _has_highlight_cue(query_lower),
             _has_visual_reference(query_lower),
             _has_explicit_jump_phrase(query_lower),
+            _is_web_search_candidate(query),
         ]
     )
 
@@ -417,6 +496,9 @@ def _should_prefer_llm_for_final(query: str, session_state: dict | None = None) 
     if not COMMAND_REASONER.is_available:
         return False
 
+    if _is_web_search_candidate(query):
+        return False
+
     if _is_probably_classroom_chatter(query):
         return True
 
@@ -439,9 +521,10 @@ def _has_strong_preview_signal(query: str, session_state: dict | None = None) ->
 
     return False
 
-def parse_command(query):
+def parse_command(query, session_state: dict | None = None):
     query_lower = _normalize_query(query)
     words = query_lower.split()
+    viewer_mode = str((session_state or {}).get("viewer_mode") or "document").strip().lower()
     if not words:
         return {
             "intent": "navigate",
@@ -455,6 +538,45 @@ def parse_command(query):
         }
 
     core_words = [word for word in words if word not in NAV_FLUFF]
+
+    if any(phrase in query_lower for phrase in ["switch to doc mode", "switch to document mode", "doc mode", "document mode", "back to document mode", "back to doc mode"]):
+        return {
+            "intent": "document_mode",
+            "clean_query": "",
+            "target_slide": None,
+            "is_direct": True,
+            "explicit_jump": False,
+            "refers_to_document": True,
+            "target_type": "auto",
+            "reasoning_source": "regex",
+        }
+
+    if any(phrase in query_lower for phrase in ["switch to search mode", "search mode", "go to search mode", "show search mode"]):
+        return {
+            "intent": "search_mode",
+            "clean_query": "",
+            "target_slide": None,
+            "is_direct": True,
+            "explicit_jump": False,
+            "refers_to_document": True,
+            "target_type": "auto",
+            "reasoning_source": "regex",
+        }
+
+    if viewer_mode == "search" and any(
+        phrase in query_lower
+        for phrase in ["open", "open link", "open result", "open this", "open that", "open it"]
+    ) and len(core_words) <= 3:
+        return {
+            "intent": "open_result",
+            "clean_query": "",
+            "target_slide": None,
+            "is_direct": True,
+            "explicit_jump": False,
+            "refers_to_document": True,
+            "target_type": "auto",
+            "reasoning_source": "regex",
+        }
 
     if any(word in query_lower for word in ["clear", "reset", "remove"]) and len(core_words) <= 3:
         return {
@@ -487,6 +609,32 @@ def parse_command(query):
             "target_slide": None,
             "is_direct": True,
             "explicit_jump": False,
+            "refers_to_document": True,
+            "target_type": "auto",
+            "reasoning_source": "regex",
+        }
+
+    if viewer_mode == "search" and any(word in query_lower for word in ["next", "next result", "forward"]):
+        return {
+            "intent": "next",
+            "clean_query": "",
+            "target_slide": None,
+            "is_direct": True,
+            "explicit_jump": True,
+            "refers_to_document": True,
+            "target_type": "auto",
+            "reasoning_source": "regex",
+        }
+
+    if viewer_mode == "search" and any(
+        word in query_lower for word in ["previous", "previous result", "prev", "back", "go back", "last"]
+    ):
+        return {
+            "intent": "prev",
+            "clean_query": "",
+            "target_slide": None,
+            "is_direct": True,
+            "explicit_jump": True,
             "refers_to_document": True,
             "target_type": "auto",
             "reasoning_source": "regex",
@@ -557,6 +705,8 @@ def parse_command(query):
     intent = "navigate"
     if _is_visual_inspect_candidate(query):
         intent = "inspect"
+    elif _is_web_search_candidate(query):
+        intent = "web_search"
     elif "highlight" in query_lower:
         intent = "highlight"
     elif "zoom" in query_lower:
@@ -590,6 +740,9 @@ def parse_command(query):
 
 def _should_use_llm(query: str, regex_decision: dict, prefer_llm: bool = False) -> bool:
     if not COMMAND_REASONER.is_available:
+        return False
+
+    if regex_decision.get("intent") == "web_search":
         return False
 
     query_lower = _normalize_query(query)
@@ -627,6 +780,9 @@ def _is_local_highlight_candidate(query: str, parsed: dict) -> bool:
     if parsed.get("is_direct") or parsed.get("explicit_jump") or not parsed.get("refers_to_document", True):
         return False
 
+    if parsed.get("intent") == "web_search":
+        return False
+
     if _is_visual_inspect_candidate(query):
         return False
 
@@ -648,7 +804,7 @@ def _is_local_highlight_candidate(query: str, parsed: dict) -> bool:
 
 
 def reason_command(query, current_slide=None, session_state: dict | None = None, prefer_llm: bool = False):
-    regex_decision = parse_command(query)
+    regex_decision = parse_command(query, session_state=session_state)
 
     if not _should_use_llm(query, regex_decision, prefer_llm=prefer_llm):
         return regex_decision
@@ -743,7 +899,7 @@ def preview_highlight(query, vector_db, k=4, current_slide=None, session_state: 
     if not current_slide:
         return None
 
-    parsed = parse_command(query)
+    parsed = parse_command(query, session_state=session_state)
     if not parsed.get("refers_to_document", True):
         return None
 
@@ -787,7 +943,12 @@ def retrieve(query, vector_db, k=8, current_slide=None, session_state: dict | No
     intent = parsed["intent"]
 
     if parsed.get("is_direct"):
+        if intent in {"search_mode", "document_mode", "open_result"}:
+            return _build_mode_response(intent)
         return _build_direct_response(intent, parsed.get("target_slide"))
+
+    if intent == "web_search":
+        return _build_web_search_response(parsed.get("clean_query") or query, parsed.get("target_slide"))
 
     clean_query = parsed.get("clean_query") or query
     target_slide = parsed.get("target_slide")

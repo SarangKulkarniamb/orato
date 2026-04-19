@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Mic, MicOff, ArrowLeft, Maximize2, Wifi, WifiOff, FileText, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { Mic, MicOff, ArrowLeft, Maximize2, Wifi, WifiOff, FileText, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Download, Globe2, ExternalLink, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Document, Page, pdfjs } from "react-pdf";
 import useAuthStore from "../store/authStore";
@@ -67,6 +67,22 @@ type BboxOverlay = {
   shadowColor: string;
   scanColor: string;
   preview?: boolean;
+};
+
+type WebSearchResult = {
+  title: string;
+  url: string;
+  snippet: string;
+  previewText?: string;
+  displayHost?: string;
+  provider?: string;
+};
+
+type WebSearchState = {
+  provider: string;
+  query: string;
+  results: WebSearchResult[];
+  selected: WebSearchResult | null;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -142,6 +158,9 @@ export function Presentation() {
   const [isConnected, setIsConnected] = useState(false);
   const [clientId, setClientId] = useState("");
   const [isExportingSummary, setIsExportingSummary] = useState(false);
+  const [viewerMode, setViewerMode] = useState<"document" | "search">("document");
+  const [webSearchState, setWebSearchState] = useState<WebSearchState | null>(null);
+  const [isWebSearching, setIsWebSearching] = useState(false);
   
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -160,14 +179,18 @@ export function Presentation() {
   const stickyIntentRef = useRef<string | null>(null);
   const activeBboxesRef = useRef<Record<number, number[][]>>({});
   const previewBboxesRef = useRef<Record<number, number[] | null>>({});
+  const viewerModeRef = useRef<"document" | "search">(viewerMode);
+  const webSearchStateRef = useRef<WebSearchState | null>(webSearchState);
 
   useEffect(() => { activePageRef.current = activePage; }, [activePage]);
+  useEffect(() => { viewerModeRef.current = viewerMode; }, [viewerMode]);
+  useEffect(() => { webSearchStateRef.current = webSearchState; }, [webSearchState]);
 
   useEffect(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "state_update", activePage: activePage }));
+      wsRef.current.send(JSON.stringify({ type: "state_update", activePage: activePage, viewerMode }));
     }
-  }, [activePage, isConnected]);
+  }, [activePage, isConnected, viewerMode]);
 
   useEffect(() => {
     const token = useAuthStore.getState().token || localStorage.getItem("token");
@@ -445,6 +468,77 @@ export function Presentation() {
     }
   }, [handleNavigate, extractAndShowImage]);
 
+  const handleSelectSearchResult = useCallback((result: WebSearchResult) => {
+    setWebSearchState((prev) => prev ? { ...prev, selected: result } : prev);
+    setViewerMode("search");
+  }, []);
+
+  const handleSearchResultStep = useCallback((direction: 1 | -1) => {
+    const state = webSearchStateRef.current;
+    if (!state?.results?.length) {
+      setTranscript("No search results to browse");
+      return;
+    }
+
+    const currentIndex = Math.max(
+      0,
+      state.results.findIndex((result) => result.url === state.selected?.url),
+    );
+    const nextIndex = (currentIndex + direction + state.results.length) % state.results.length;
+    const nextResult = state.results[nextIndex];
+    setWebSearchState({ ...state, selected: nextResult });
+    setViewerMode("search");
+    setTranscript(`Selected result ${nextIndex + 1}: ${nextResult.title}`);
+  }, []);
+
+  const handleOpenSelectedSearchResult = useCallback(() => {
+    const selected = webSearchStateRef.current?.selected;
+    if (!selected?.url) {
+      setTranscript("No search result selected to open");
+      return;
+    }
+    const opened = window.open(selected.url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      const anchor = document.createElement("a");
+      anchor.href = selected.url;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    }
+    setTranscript(`Opened ${selected.title}`);
+  }, []);
+
+  const handleWebSearch = useCallback(async (rawQuery: string) => {
+    if (!id) return;
+
+    try {
+      setIsWebSearching(true);
+      setViewerMode("search");
+      setTranscript("Searching the web...");
+
+      const response = await api.post(`/auth/web-search/${id}`, { query: rawQuery });
+      const payload = response.data as WebSearchState;
+      setWebSearchState({
+        provider: payload.provider || "web",
+        query: payload.query || rawQuery,
+        results: payload.results || [],
+        selected: payload.selected || (payload.results?.[0] ?? null),
+      });
+
+      if (payload.results?.length) {
+        setTranscript(`Web search ready for "${payload.query}"`);
+      } else {
+        setTranscript(`No web results found for "${payload.query || rawQuery}"`);
+      }
+    } catch (_err) {
+      setTranscript("Web search failed");
+    } finally {
+      setIsWebSearching(false);
+    }
+  }, [id]);
+
   const handleExportSummary = useCallback(async () => {
     if (!id || isExportingSummary) return;
 
@@ -476,6 +570,7 @@ export function Presentation() {
     activeBboxesRef.current = {}; // Clear duplicate tracker
     previewBboxesRef.current = {};
     stickyIntentRef.current = null; // Clear sticky highlight mode
+    setViewerMode("document");
     setModalImage(null);
     setZoomLevel(1); 
     setTranscript("Cleared all effects");
@@ -483,15 +578,41 @@ export function Presentation() {
 
   const wsHandlersRef = useRef({
     navigate: handleNavigate, highlight: handleHighlight, zoom: handleZoom,
-    inspect: handleInspect, clear: handleClear, transcriptUpdater: setTranscript
+    inspect: handleInspect,
+    webSearch: handleWebSearch,
+    switchToDocumentMode: () => {
+      setViewerMode("document");
+      setTranscript("Switched to document mode");
+    },
+    switchToSearchMode: () => {
+      setViewerMode("search");
+      setTranscript(webSearchStateRef.current?.results?.length ? "Switched to search mode" : "Search mode ready");
+    },
+    openSearchResult: handleOpenSelectedSearchResult,
+    searchResultStep: handleSearchResultStep,
+    clear: handleClear,
+    transcriptUpdater: setTranscript
   });
 
   useEffect(() => {
     wsHandlersRef.current = {
       navigate: handleNavigate, highlight: handleHighlight, zoom: handleZoom,
-      inspect: handleInspect, clear: handleClear, transcriptUpdater: setTranscript
+      inspect: handleInspect,
+      webSearch: handleWebSearch,
+      switchToDocumentMode: () => {
+        setViewerMode("document");
+        setTranscript("Switched to document mode");
+      },
+      switchToSearchMode: () => {
+        setViewerMode("search");
+        setTranscript(webSearchStateRef.current?.results?.length ? "Switched to search mode" : "Search mode ready");
+      },
+      openSearchResult: handleOpenSelectedSearchResult,
+      searchResultStep: handleSearchResultStep,
+      clear: handleClear,
+      transcriptUpdater: setTranscript
     };
-  }, [handleNavigate, handleHighlight, handleZoom, handleInspect, handleClear]);
+  }, [handleNavigate, handleHighlight, handleZoom, handleInspect, handleWebSearch, handleOpenSelectedSearchResult, handleSearchResultStep, handleClear]);
 
   // =====================================================================
   // WEBSOCKET 1: MAIN CONTROL 
@@ -532,7 +653,7 @@ export function Presentation() {
         clearReconnectTimer();
         wsReconnectAttemptsRef.current = 0;
         setIsConnected(true);
-        ws.send(JSON.stringify({ type: "state_update", activePage: activePageRef.current }));
+        ws.send(JSON.stringify({ type: "state_update", activePage: activePageRef.current, viewerMode: viewerModeRef.current }));
       };
 
       ws.onclose = () => {
@@ -586,13 +707,29 @@ export function Presentation() {
           switch (resolvedIntent) {
             case "zoom_in": setZoomLevel(z => Math.min(z + 0.3, 4)); break;
             case "zoom_out": setZoomLevel(z => Math.max(z - 0.3, 0.4)); break;
-            case "next": handlers.navigate(activePageRef.current + 1); break;
-            case "prev": handlers.navigate(activePageRef.current - 1); break;
+            case "next":
+              if (viewerModeRef.current === "search" && webSearchStateRef.current?.results?.length) {
+                handlers.searchResultStep(1);
+              } else {
+                handlers.navigate(activePageRef.current + 1);
+              }
+              break;
+            case "prev":
+              if (viewerModeRef.current === "search" && webSearchStateRef.current?.results?.length) {
+                handlers.searchResultStep(-1);
+              } else {
+                handlers.navigate(activePageRef.current - 1);
+              }
+              break;
             case "navigate": 
             case "search": if (slide) handlers.navigate(slide); break;
             case "highlight": if (slide && bbox) handlers.highlight(slide, bbox, targetType, { preview: isPreview }); break;
             case "zoom": if (slide && bbox) handlers.zoom(slide, bbox, targetType); break;
             case "inspect": if (slide && bbox) handlers.inspect(slide, bbox, imageInd); break;
+            case "web_search": if (textData) handlers.webSearch(textData); break;
+            case "search_mode": handlers.switchToSearchMode(); break;
+            case "document_mode": handlers.switchToDocumentMode(); break;
+            case "open_result": handlers.openSearchResult(); break;
             case "speech": if (textData) handlers.transcriptUpdater(textData); break;
           }
         } catch (_err) {}
@@ -719,14 +856,37 @@ export function Presentation() {
       const viewport = page.getViewport({ scale: 1 });
       const container = scrollContainerRef.current;
       if (!container) return;
-      const usableWidth = container.clientWidth - 950;
-      const newBaseScale = usableWidth / viewport.width;
+      const horizontalPadding = 96;
+      const usableWidth = Math.max(container.clientWidth - horizontalPadding, 320);
+      const newBaseScale = clamp(usableWidth / viewport.width, 0.5, 2.2);
       setBaseScale(newBaseScale);
     };
-    recalcBaseScale();
+    const scheduledRecalc = () => {
+      window.requestAnimationFrame(() => {
+        recalcBaseScale();
+      });
+    };
+
+    scheduledRecalc();
+    const settleTimers = [
+      window.setTimeout(scheduledRecalc, 160),
+      window.setTimeout(scheduledRecalc, 360),
+    ];
+
+    const resizeObserver = new ResizeObserver(() => {
+      scheduledRecalc();
+    });
+    if (scrollContainerRef.current) {
+      resizeObserver.observe(scrollContainerRef.current);
+    }
+
     window.addEventListener("resize", recalcBaseScale);
-    return () => window.removeEventListener("resize", recalcBaseScale);
-  }, [pdfDocument, sidebarCollapsed]);
+    return () => {
+      settleTimers.forEach((timer) => window.clearTimeout(timer));
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", recalcBaseScale);
+    };
+  }, [pdfDocument, sidebarCollapsed, viewerMode, webSearchState]);
 
   if (isLoading) return (
     <div className="h-screen bg-[#080b14] flex items-center justify-center">
@@ -812,89 +972,214 @@ export function Presentation() {
       </motion.div>
 
       {/* --- MAIN CONTENT AREA --- */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto bg-[#05070e] custom-scrollbar relative">
-        <div className="min-h-full w-full flex flex-col items-center py-24 px-8">
-          {fileUrl && (
-            <div ref={viewerRef} className="relative">
-              <Document 
-                file={fileUrl} 
-                onLoadSuccess={(pdf) => { setNumPages(pdf.numPages); setPdfDocument(pdf); }} 
-                className="flex flex-col items-center"
-                loading={<Loader2 className="w-10 h-10 text-[#8b5cf6] animate-spin mt-20" />}
-              >
-                {Array.from(new Array(numPages), (_, i) => {
-                  const pageNum = i + 1;
-                  const pageBboxes = bboxes[pageNum] || [];
-                  
-                  return (
-                    <div 
-                      key={pageNum} id={`page-wrapper-${pageNum}`} data-page-number={pageNum} 
-                      ref={(el) => { pageRefs.current[pageNum] = el; }} 
-                      className={`pdf-page-container ${activePage === pageNum ? 'active-page' : 'opacity-100'}`}
-                    >
-                      {/* PDF RENDER */}
-                      <Page pageNumber={pageNum} scale={scale} renderAnnotationLayer={false} className="rounded-md overflow-hidden shadow-2xl shadow-black/50" customTextRenderer={(t) => t.str} loading="" />
-                      
-                      {/* BBOX OVERLAYS */}
-                      {pageBboxes.map((box) => {
-                        const left = box.bbox[0] * 100;
-                        const top = box.bbox[1] * 100;
-                        const width = box.bbox[2] * 100;
-                        const height = box.bbox[3] * 100;
-                        const animation = getBboxAnimationConfig(box.bbox, box.preview);
+      <div className="flex-1 bg-[#05070e] relative flex min-w-0">
+        <motion.div
+          ref={scrollContainerRef}
+          className="overflow-auto custom-scrollbar relative"
+          animate={{
+            width: viewerMode === "search" && webSearchState ? "58%" : "100%",
+          }}
+          transition={{ type: "spring", stiffness: 180, damping: 26 }}
+        >
+          <div className="min-h-full w-full flex flex-col items-center py-24 px-8">
+            {fileUrl && (
+              <div ref={viewerRef} className="relative">
+                <Document 
+                  file={fileUrl} 
+                  onLoadSuccess={(pdf) => { setNumPages(pdf.numPages); setPdfDocument(pdf); }} 
+                  className="flex flex-col items-center"
+                  loading={<Loader2 className="w-10 h-10 text-[#8b5cf6] animate-spin mt-20" />}
+                >
+                  {Array.from(new Array(numPages), (_, i) => {
+                    const pageNum = i + 1;
+                    const pageBboxes = bboxes[pageNum] || [];
+                    
+                    return (
+                      <div 
+                        key={pageNum} id={`page-wrapper-${pageNum}`} data-page-number={pageNum} 
+                        ref={(el) => { pageRefs.current[pageNum] = el; }} 
+                        className={`pdf-page-container ${activePage === pageNum ? 'active-page' : 'opacity-100'}`}
+                      >
+                        {/* PDF RENDER */}
+                        <Page pageNumber={pageNum} scale={scale} renderAnnotationLayer={false} className="rounded-md overflow-hidden shadow-2xl shadow-black/50" customTextRenderer={(t) => t.str} loading="" />
+                        
+                        {/* BBOX OVERLAYS */}
+                        {pageBboxes.map((box) => {
+                          const left = box.bbox[0] * 100;
+                          const top = box.bbox[1] * 100;
+                          const width = box.bbox[2] * 100;
+                          const height = box.bbox[3] * 100;
+                          const animation = getBboxAnimationConfig(box.bbox, box.preview);
 
-                        return (
-                          <div
-                            key={box.id}
-                            ref={(el) => { bboxRefs.current[box.id] = el; }}
-                            className={`bbox-highlight ${box.preview ? "is-preview" : "is-final"}`}
-                            style={{
-                              left: `${left}%`,
-                              top: `${top}%`,
-                              width: `${width}%`,
-                              height: `${height}%`,
-                              '--bg-color': box.bgColor,
-                              '--border-color': box.borderColor,
-                              '--shadow-color': box.shadowColor,
-                              '--pulse-delay': `${animation.pulseDelay}s`,
-                            } as React.CSSProperties}
-                          >
-                            <motion.div
-                              className="bbox-highlight-fill"
-                              style={{ inset: `${animation.fillInset}px` }}
-                              initial={{ scaleX: 0.03, opacity: 0.08 }}
-                              animate={{ scaleX: 1, opacity: animation.fillOpacity }}
-                              transition={{
-                                duration: animation.revealDuration,
-                                ease: [0.22, 1, 0.36, 1],
-                              }}
-                            />
-                            <motion.div
-                              className="bbox-highlight-outline"
-                              initial={{ opacity: 0.16, scaleX: 0.97, scaleY: 0.98 }}
-                              animate={{ opacity: animation.outlineOpacity, scaleX: 1, scaleY: 1 }}
-                              transition={{
-                                duration: animation.revealDuration * 0.76,
-                                delay: animation.outlineDelay,
-                                ease: [0.22, 1, 0.36, 1],
-                              }}
-                            />
-                          </div>
-                        );
-                      })}
+                          return (
+                            <div
+                              key={box.id}
+                              ref={(el) => { bboxRefs.current[box.id] = el; }}
+                              className={`bbox-highlight ${box.preview ? "is-preview" : "is-final"}`}
+                              style={{
+                                left: `${left}%`,
+                                top: `${top}%`,
+                                width: `${width}%`,
+                                height: `${height}%`,
+                                '--bg-color': box.bgColor,
+                                '--border-color': box.borderColor,
+                                '--shadow-color': box.shadowColor,
+                                '--pulse-delay': `${animation.pulseDelay}s`,
+                              } as React.CSSProperties}
+                            >
+                              <motion.div
+                                className="bbox-highlight-fill"
+                                style={{ inset: `${animation.fillInset}px` }}
+                                initial={{ scaleX: 0.03, opacity: 0.08 }}
+                                animate={{ scaleX: 1, opacity: animation.fillOpacity }}
+                                transition={{
+                                  duration: animation.revealDuration,
+                                  ease: [0.22, 1, 0.36, 1],
+                                }}
+                              />
+                              <motion.div
+                                className="bbox-highlight-outline"
+                                initial={{ opacity: 0.16, scaleX: 0.97, scaleY: 0.98 }}
+                                animate={{ opacity: animation.outlineOpacity, scaleX: 1, scaleY: 1 }}
+                                transition={{
+                                  duration: animation.revealDuration * 0.76,
+                                  delay: animation.outlineDelay,
+                                  ease: [0.22, 1, 0.36, 1],
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
 
-                      <div className="absolute top-0 -left-16 text-slate-600 font-mono text-xs font-bold pt-4">{String(pageNum).padStart(2, '0')}</div>
+                        <div className="absolute top-0 -left-16 text-slate-600 font-mono text-xs font-bold pt-4">{String(pageNum).padStart(2, '0')}</div>
+                      </div>
+                    );
+                  })}
+                </Document>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        <AnimatePresence>
+          {webSearchState && viewerMode === "search" && (
+            <motion.aside
+              initial={{ opacity: 0, x: 48 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 48 }}
+              transition={{ type: "spring", stiffness: 180, damping: 24 }}
+              className="w-[42%] min-w-[380px] max-w-[620px] border-l border-white/[0.06] bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_34%),linear-gradient(180deg,#0d1120_0%,#080b14_100%)]"
+            >
+              <div className="h-full overflow-auto custom-scrollbar px-6 py-24">
+                <div className="rounded-3xl border border-white/[0.06] bg-white/[0.03] shadow-2xl shadow-black/30 overflow-hidden">
+                  <div className="border-b border-white/[0.06] px-6 py-5 bg-white/[0.02]">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500 mb-2">Search Mode</p>
+                        <h2 className="text-lg font-semibold text-white leading-tight">{webSearchState.query}</h2>
+                        <p className="text-xs text-slate-400 mt-2 flex items-center gap-2">
+                          <Globe2 size={14} />
+                          {isWebSearching ? "Searching live web..." : `Source: ${webSearchState.provider}`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setViewerMode("document")}
+                        className="px-3 py-2 rounded-full border border-white/[0.08] text-xs text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors"
+                      >
+                        Doc Focus
+                      </button>
                     </div>
-                  );
-                })}
-              </Document>
-            </div>
+                  </div>
+
+                  <div className="grid grid-cols-[minmax(240px,0.95fr)_minmax(0,1.25fr)] min-h-[560px]">
+                    <div className="border-r border-white/[0.06] bg-black/10">
+                      <div className="px-4 py-4 space-y-3">
+                        {webSearchState.results.map((result) => {
+                          const isSelected = webSearchState.selected?.url === result.url;
+                          return (
+                            <button
+                              key={result.url}
+                              onClick={() => handleSelectSearchResult(result)}
+                              className={`w-full text-left rounded-2xl border px-4 py-4 transition-all ${
+                                isSelected
+                                  ? "border-[#8b5cf6]/40 bg-[#8b5cf6]/14 shadow-[0_14px_32px_rgba(139,92,246,0.12)]"
+                                  : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"
+                              }`}
+                            >
+                              <p className="text-sm font-semibold text-white leading-snug">{result.title}</p>
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mt-2">{result.displayHost || "Web"}</p>
+                              <p className="text-xs text-slate-300 mt-3 leading-relaxed">{result.snippet || "Open result for full context."}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="px-6 py-5">
+                      {webSearchState.selected ? (
+                        <div className="space-y-5">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500 mb-2">Embedded Web Context</p>
+                              <h3 className="text-xl font-semibold text-white leading-tight">{webSearchState.selected.title}</h3>
+                              <p className="text-sm text-slate-400 mt-2">{webSearchState.selected.snippet}</p>
+                            </div>
+                            <a
+                              href={webSearchState.selected.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-full border border-white/[0.08] text-xs text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors"
+                            >
+                              <ExternalLink size={14} />
+                              Open
+                            </a>
+                          </div>
+
+                          <div className="rounded-2xl border border-white/[0.06] bg-[#090d19] px-5 py-5">
+                            <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500 mb-3">Preview</p>
+                            <div className="space-y-4 text-sm leading-7 text-slate-200">
+                              {(webSearchState.selected.previewText || webSearchState.selected.snippet || "No embedded preview was available for this result.")
+                                .split("\n\n")
+                                .filter(Boolean)
+                                .slice(0, 6)
+                                .map((paragraph, index) => (
+                                  <p key={`${webSearchState.selected?.url}_${index}`}>{paragraph}</p>
+                                ))}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+                          Select a result to inspect the embedded web preview.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.aside>
           )}
-        </div>
+        </AnimatePresence>
       </div>
 
       {/* PAGE NAVIGATOR (TOP RIGHT) */}
       <div className="fixed top-8 right-8 flex items-center gap-4 z-30">
+        {webSearchState && (
+          <div className="bg-[#0e1120]/90 border border-white/[0.08] rounded-full p-1 flex items-center gap-1 shadow-xl backdrop-blur-md">
+            <button
+              onClick={() => setViewerMode("document")}
+              className={`px-4 py-2 rounded-full text-xs font-medium transition-colors ${viewerMode === "document" ? "bg-white text-[#080b14]" : "text-slate-300 hover:text-white"}`}
+            >
+              Doc Mode
+            </button>
+            <button
+              onClick={() => setViewerMode("search")}
+              className={`px-4 py-2 rounded-full text-xs font-medium transition-colors ${viewerMode === "search" ? "bg-[#8b5cf6] text-white" : "text-slate-300 hover:text-white"}`}
+            >
+              Search Mode
+            </button>
+          </div>
+        )}
         <div className="bg-[#0e1120]/90 border border-white/[0.08] rounded-full px-4 py-2 flex items-center gap-3 shadow-xl backdrop-blur-md">
            <button onClick={() => handleNavigate(activePage - 1)} className="p-1 hover:text-violet-400 transition-colors"><ChevronLeft size={20}/></button>
            <span className="text-xs font-mono font-bold w-12 text-center text-slate-300">{activePage} / {numPages}</span>

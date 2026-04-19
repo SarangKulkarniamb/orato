@@ -77,6 +77,23 @@ def _update_doc_focus_score(state: dict, refers_to_document: bool):
         state["doc_focus_score"] = max(current - 1, 0)
 
 
+def _remember_document_focus(state: dict, action_response: dict | None):
+    if not state or not action_response:
+        return
+
+    if action_response.get("intent") not in {"highlight", "zoom", "inspect", "navigate", "search"}:
+        return
+
+    content = " ".join(str(action_response.get("content") or "").split())
+    title = str(action_response.get("title") or "").strip()
+    if content:
+        state["last_focus_text"] = content[:320]
+    if title:
+        state["last_focus_title"] = title[:120]
+    state["last_focus_slide"] = action_response.get("slide")
+    state["last_focus_type"] = action_response.get("type")
+
+
 async def _send_action(client_id: str, action_response: dict, preview: bool = False):
     payload = {
         "type": "action",
@@ -159,6 +176,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str, token: str = 
         "recent_utterances": [],
         "transcript_history": [],
         "doc_focus_score": 0,
+        "viewer_mode": "document",
+        "last_focus_text": "",
+        "last_focus_title": "",
+        "last_focus_slide": 1,
+        "last_focus_type": "text",
         **existing_state,
     }
 
@@ -187,9 +209,15 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str, token: str = 
                             "recent_utterances": [],
                             "transcript_history": [],
                             "doc_focus_score": 0,
+                            "viewer_mode": "document",
+                            "last_focus_text": "",
+                            "last_focus_title": "",
+                            "last_focus_slide": 1,
+                            "last_focus_type": "text",
                         },
                     )
                     state["active_page"] = new_page
+                    state["viewer_mode"] = str(message.get("viewerMode", state.get("viewer_mode", "document")) or "document")
                     state["last_preview_transcript"] = ""
                     state["last_preview_signature"] = None
                     state["last_preview_at"] = 0.0
@@ -270,6 +298,11 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
                         "recent_utterances": [],
                         "transcript_history": [],
                         "doc_focus_score": 0,
+                        "viewer_mode": "document",
+                        "last_focus_text": "",
+                        "last_focus_title": "",
+                        "last_focus_slide": 1,
+                        "last_focus_type": "text",
                     },
                 )
                 current_slide = user_state.get("active_page", 1)
@@ -305,6 +338,7 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
 
                 if action_response:
                     print(f"Action: {action_response}")
+                    _remember_document_focus(user_state, action_response)
                     await _send_action(client_id, action_response, preview=False)
             else:
                 print(f"[INTERIM] {transcript}")
@@ -322,6 +356,11 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
                         "recent_utterances": [],
                         "transcript_history": [],
                         "doc_focus_score": 0,
+                        "viewer_mode": "document",
+                        "last_focus_text": "",
+                        "last_focus_title": "",
+                        "last_focus_slide": 1,
+                        "last_focus_type": "text",
                     },
                 )
                 if not _should_process_interim_preview(user_state, transcript):
@@ -353,6 +392,7 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
 
                 user_state["last_preview_signature"] = preview_signature
                 print(f"Preview action: {preview_response}")
+                _remember_document_focus(user_state, preview_response)
                 await _send_action(client_id, preview_response, preview=True)
 
     except Exception as exc:

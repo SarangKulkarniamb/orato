@@ -231,3 +231,64 @@ class LLMCommandReasoner:
             confidence=max(0.0, min(confidence, 1.0)),
             refers_to_document=bool(parsed.get("refers_to_document", True)),
         )
+
+    def summarize_lecture(
+        self,
+        document_title: str,
+        teacher_speech: str,
+        document_context: str,
+    ) -> Optional[str]:
+        teacher_speech = (teacher_speech or "").strip()
+        document_context = (document_context or "").strip()
+        if not self.is_available or (not teacher_speech and not document_context):
+            return None
+
+        payload = {
+            "model": self.model,
+            "temperature": 0.2,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You create concise, accurate lecture summaries for students. "
+                        "Use both the teacher's spoken lecture transcript and the provided document context. "
+                        "Return plain text only, no markdown code fences. "
+                        "Use these section headings exactly: Lecture Overview, Key Concepts, Teacher Emphasis, Document Connections, Study Notes. "
+                        "Keep the output compact but useful, with short bullet-style lines under each heading. "
+                        "Do not invent facts that are not grounded in the supplied speech or document context."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Document title: {document_title or 'Untitled document'}\n\n"
+                        f"Teacher speech:\n{teacher_speech or 'No teacher speech captured.'}\n\n"
+                        f"Document context:\n{document_context or 'No document context available.'}"
+                    ),
+                },
+            ],
+        }
+
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            with httpx.Client(timeout=max(self.timeout_seconds, 20.0)) as client:
+                response = client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+                response.raise_for_status()
+
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            return _strip_code_fences(content)
+        except Exception as exc:
+            print(f"LLM lecture summarization unavailable, falling back to heuristic summary: {exc}")
+            return None

@@ -56,6 +56,13 @@ def _append_recent_utterance(state: dict, transcript: str):
     if not normalized:
         return
 
+    raw_transcript = " ".join((transcript or "").strip().split())
+    history = state.setdefault("transcript_history", [])
+    if raw_transcript:
+        history.append(raw_transcript)
+        if len(history) > 80:
+            del history[:-80]
+
     recent = state.setdefault("recent_utterances", [])
     recent.append(normalized)
     if len(recent) > 6:
@@ -150,6 +157,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str, token: str = 
         "last_preview_signature": None,
         "last_preview_at": 0.0,
         "recent_utterances": [],
+        "transcript_history": [],
         "doc_focus_score": 0,
         **existing_state,
     }
@@ -177,6 +185,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str, token: str = 
                             "last_preview_signature": None,
                             "last_preview_at": 0.0,
                             "recent_utterances": [],
+                            "transcript_history": [],
                             "doc_focus_score": 0,
                         },
                     )
@@ -259,6 +268,7 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
                         "last_preview_signature": None,
                         "last_preview_at": 0.0,
                         "recent_utterances": [],
+                        "transcript_history": [],
                         "doc_focus_score": 0,
                     },
                 )
@@ -310,6 +320,7 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
                         "last_preview_signature": None,
                         "last_preview_at": 0.0,
                         "recent_utterances": [],
+                        "transcript_history": [],
                         "doc_focus_score": 0,
                     },
                 )

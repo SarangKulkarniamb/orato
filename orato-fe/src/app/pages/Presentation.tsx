@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Mic, MicOff, ArrowLeft, Maximize2, Wifi, WifiOff, FileText, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { Mic, MicOff, ArrowLeft, Maximize2, Wifi, WifiOff, FileText, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Document, Page, pdfjs } from "react-pdf";
 import useAuthStore from "../store/authStore";
@@ -141,6 +141,7 @@ export function Presentation() {
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [clientId, setClientId] = useState("");
+  const [isExportingSummary, setIsExportingSummary] = useState(false);
   
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -444,6 +445,32 @@ export function Presentation() {
     }
   }, [handleNavigate, extractAndShowImage]);
 
+  const handleExportSummary = useCallback(async () => {
+    if (!id || isExportingSummary) return;
+
+    try {
+      setIsExportingSummary(true);
+      setTranscript("Preparing lecture summary PDF...");
+
+      const response = await api.post(`/auth/export-lecture-summary/${id}`, {}, { responseType: "blob" });
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const baseName = (docTitle || "lecture").replace(/\.[^/.]+$/, "").trim() || "lecture";
+      link.href = url;
+      link.download = `${baseName}_lecture_summary.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setTranscript("Lecture summary PDF downloaded");
+    } catch (_err) {
+      setTranscript("Could not export lecture summary");
+    } finally {
+      setIsExportingSummary(false);
+    }
+  }, [docTitle, id, isExportingSummary]);
+
   const handleClear = useCallback(() => {
     setBboxes({}); 
     activeBboxesRef.current = {}; // Clear duplicate tracker
@@ -738,6 +765,15 @@ export function Presentation() {
                 <button onClick={() => setZoomLevel(z => Math.max(z - 0.1, 0.4))} className="flex items-center justify-center gap-2 p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.05] text-slate-300 rounded-xl text-xs transition-colors"><ZoomOut size={14}/> Out</button>
               </div>
 
+              <button
+                onClick={handleExportSummary}
+                disabled={isExportingSummary}
+                className="w-full flex items-center justify-center gap-2 p-3 bg-[#8b5cf6]/12 hover:bg-[#8b5cf6]/18 disabled:opacity-60 disabled:cursor-not-allowed border border-[#8b5cf6]/25 text-violet-100 rounded-xl text-xs font-medium transition-colors"
+              >
+                {isExportingSummary ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                {isExportingSummary ? "Saving..." : "Export Summary PDF"}
+              </button>
+
               <div className="w-full mt-auto pt-6 space-y-4">
                 <div className="bg-[#080b14]/50 border border-white/[0.05] rounded-2xl p-5 flex flex-col items-center gap-5">
                    <button 
@@ -763,6 +799,7 @@ export function Presentation() {
                   {isListening ? <MicOff size={20} className="text-white" /> : <Mic size={20} className="text-white" />}
                 </button>
                 <div className={`w-3 h-3 rounded-full ${isConnected ? "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]" : "bg-red-500"}`} />
+                <button onClick={handleExportSummary} disabled={isExportingSummary} className="text-slate-400 hover:text-white disabled:opacity-50 transition-colors"><Download size={20}/></button>
                 <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 4))} className="text-slate-400 hover:text-white transition-colors"><ZoomIn size={20}/></button>
                 <button onClick={() => setZoomLevel(z => Math.max(z - 0.1, 0.4))} className="text-slate-400 hover:text-white transition-colors"><ZoomOut size={20}/></button>
              </div>

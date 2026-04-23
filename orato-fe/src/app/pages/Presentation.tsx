@@ -628,7 +628,9 @@ export function Presentation() {
     setClientId(cId);
     
     const apiBase = (import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000";
-    const wsBase = apiBase.replace(/^http/, apiBase.startsWith("https") ? "wss" : "ws");
+    const wsBase = apiBase.startsWith("https://")
+      ? apiBase.replace(/^https:\/\//, "wss://")
+      : apiBase.replace(/^http:\/\//, "ws://");
 
     let disposed = false;
 
@@ -760,7 +762,9 @@ export function Presentation() {
         if (!clientId) return;
 
         const apiBase = (import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000";
-        const wsBase = apiBase.replace(/^http/, apiBase.startsWith("https") ? "wss" : "ws");
+        const wsBase = apiBase.startsWith("https://")
+          ? apiBase.replace(/^https:\/\//, "wss://")
+          : apiBase.replace(/^http:\/\//, "ws://");
         
         sttWs = new WebSocket(`${wsBase}/ws/stt/${clientId}`);
         sttWsRef.current = sttWs;

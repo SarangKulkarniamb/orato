@@ -5,6 +5,7 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from llm_reasoner import LLMCommandReasoner
+from settings import get_chroma_path
 
 
 IMAGE_KEYWORDS = {
@@ -12,11 +13,25 @@ IMAGE_KEYWORDS = {
     "diagram",
     "figure",
     "picture",
+    "photo",
     "graph",
     "chart",
     "flowchart",
     "schematic",
     "plot",
+}
+
+ORDINAL_WORDS = {
+    "first": 0,
+    "second": 1,
+    "third": 2,
+    "fourth": 3,
+    "fifth": 4,
+    "sixth": 5,
+    "seventh": 6,
+    "eighth": 7,
+    "ninth": 8,
+    "tenth": 9,
 }
 
 VISUAL_INSPECT_VERBS = {
@@ -245,7 +260,7 @@ def load_vector_db(doc_id):
 
     vector_db = Chroma(
         collection_name=f"doc_{doc_id}",
-        persist_directory=f"db/chroma/{doc_id}",
+        persist_directory=get_chroma_path(doc_id),
         embedding_function=_get_embedding_model(),
     )
     _VECTOR_DB_CACHE[doc_id] = vector_db
@@ -334,6 +349,19 @@ def _build_match_response(intent: str, best_match):
     }
 
 
+def _build_metadata_match_response(intent: str, metadata: dict, content: str):
+    return {
+        "intent": intent,
+        "content": content,
+        "slide": metadata.get("slide"),
+        "bbox": metadata.get("bbox", [0, 0, 0, 0]),
+        "type": metadata.get("type", "text"),
+        "section": metadata.get("section", "general"),
+        "title": metadata.get("title", "Untitled"),
+        "imageInd": metadata.get("image_ind", 0),
+    }
+
+
 def _has_current_page_reference(query_lower: str) -> bool:
     if any(phrase in query_lower for phrase in CURRENT_PAGE_PHRASES):
         return True
@@ -352,6 +380,38 @@ def _has_visual_reference(query_lower: str) -> bool:
 
 def _has_visual_inspect_verb(query_lower: str) -> bool:
     return any(phrase in query_lower for phrase in VISUAL_INSPECT_VERBS)
+
+
+def _ordinal_token_to_index(token: str) -> int | None:
+    token = (token or "").strip().lower()
+    if not token:
+        return None
+
+    if token in ORDINAL_WORDS:
+        return ORDINAL_WORDS[token]
+
+    match = re.fullmatch(r"(\d+)(?:st|nd|rd|th)", token)
+    if not match:
+        return None
+
+    ordinal_number = int(match.group(1))
+    if ordinal_number <= 0:
+        return None
+
+    return ordinal_number - 1
+
+
+def _extract_requested_image_index(query_lower: str) -> int | None:
+    visual_nouns = r"(?:image|diagram|figure|picture|photo|graph|chart|flowchart|schematic|plot|visual)s?"
+    ordinal_words = "|".join(ORDINAL_WORDS)
+    match = re.search(
+        rf"\b(?:the\s+)?(?P<ordinal>\d+(?:st|nd|rd|th)|{ordinal_words})\s+{visual_nouns}\b",
+        query_lower,
+    )
+    if not match:
+        return None
+
+    return _ordinal_token_to_index(match.group("ordinal"))
 
 
 def _is_web_search_candidate(query: str) -> bool:
@@ -385,6 +445,13 @@ def _is_web_search_candidate(query: str) -> bool:
 def _is_visual_inspect_candidate(query: str) -> bool:
     query_lower = _normalize_query(query)
     return _has_visual_reference(query_lower) and _has_visual_inspect_verb(query_lower)
+
+
+def _uses_current_page_for_visual_selection(query_lower: str) -> bool:
+    if _has_current_page_reference(query_lower):
+        return True
+
+    return any(phrase in query_lower for phrase in {"on page", "on slide"})
 
 
 def _has_explicit_jump_phrase(query_lower: str) -> bool:
@@ -525,6 +592,7 @@ def parse_command(query, session_state: dict | None = None):
     query_lower = _normalize_query(query)
     words = query_lower.split()
     viewer_mode = str((session_state or {}).get("viewer_mode") or "document").strip().lower()
+    current_slide = (session_state or {}).get("active_page")
     if not words:
         return {
             "intent": "navigate",
@@ -534,6 +602,8 @@ def parse_command(query, session_state: dict | None = None):
             "explicit_jump": False,
             "refers_to_document": False,
             "target_type": "auto",
+            "requested_image_index": None,
+            "inspect_mode": None,
             "reasoning_source": "regex",
         }
 
@@ -548,6 +618,8 @@ def parse_command(query, session_state: dict | None = None):
             "explicit_jump": False,
             "refers_to_document": True,
             "target_type": "auto",
+            "requested_image_index": None,
+            "inspect_mode": None,
             "reasoning_source": "regex",
         }
 
@@ -560,6 +632,8 @@ def parse_command(query, session_state: dict | None = None):
             "explicit_jump": False,
             "refers_to_document": True,
             "target_type": "auto",
+            "requested_image_index": None,
+            "inspect_mode": None,
             "reasoning_source": "regex",
         }
 
@@ -575,6 +649,8 @@ def parse_command(query, session_state: dict | None = None):
             "explicit_jump": False,
             "refers_to_document": True,
             "target_type": "auto",
+            "requested_image_index": None,
+            "inspect_mode": None,
             "reasoning_source": "regex",
         }
 
@@ -587,6 +663,8 @@ def parse_command(query, session_state: dict | None = None):
             "explicit_jump": False,
             "refers_to_document": True,
             "target_type": "auto",
+            "requested_image_index": None,
+            "inspect_mode": None,
             "reasoning_source": "regex",
         }
 
@@ -599,6 +677,8 @@ def parse_command(query, session_state: dict | None = None):
             "explicit_jump": False,
             "refers_to_document": True,
             "target_type": "auto",
+            "requested_image_index": None,
+            "inspect_mode": None,
             "reasoning_source": "regex",
         }
 
@@ -611,6 +691,8 @@ def parse_command(query, session_state: dict | None = None):
             "explicit_jump": False,
             "refers_to_document": True,
             "target_type": "auto",
+            "requested_image_index": None,
+            "inspect_mode": None,
             "reasoning_source": "regex",
         }
 
@@ -623,6 +705,8 @@ def parse_command(query, session_state: dict | None = None):
             "explicit_jump": True,
             "refers_to_document": True,
             "target_type": "auto",
+            "requested_image_index": None,
+            "inspect_mode": None,
             "reasoning_source": "regex",
         }
 
@@ -637,6 +721,8 @@ def parse_command(query, session_state: dict | None = None):
             "explicit_jump": True,
             "refers_to_document": True,
             "target_type": "auto",
+            "requested_image_index": None,
+            "inspect_mode": None,
             "reasoning_source": "regex",
         }
 
@@ -672,10 +758,13 @@ def parse_command(query, session_state: dict | None = None):
                 "explicit_jump": True,
                 "refers_to_document": True,
                 "target_type": "auto",
+                "requested_image_index": None,
+                "inspect_mode": None,
                 "reasoning_source": "regex",
             }
 
     target_slide = None
+    requested_image_index = _extract_requested_image_index(query_lower)
     slide_match = re.search(r"(?:slide|page)\s+(?:number\s+)?(\d+)", query_lower)
     explicit_jump = _has_explicit_jump_phrase(query_lower)
 
@@ -697,13 +786,26 @@ def parse_command(query, session_state: dict | None = None):
                 "explicit_jump": True,
                 "refers_to_document": True,
                 "target_type": "auto",
+                "requested_image_index": None,
+                "inspect_mode": None,
                 "reasoning_source": "regex",
             }
 
         explicit_jump = True
 
+    if (
+        requested_image_index is not None
+        and target_slide is None
+        and isinstance(current_slide, int)
+        and current_slide > 0
+        and _uses_current_page_for_visual_selection(query_lower)
+    ):
+        target_slide = current_slide
+
     intent = "navigate"
     if _is_visual_inspect_candidate(query):
+        intent = "inspect"
+    elif requested_image_index is not None and _has_visual_reference(query_lower):
         intent = "inspect"
     elif _is_web_search_candidate(query):
         intent = "web_search"
@@ -719,6 +821,12 @@ def parse_command(query, session_state: dict | None = None):
         clean_query_words = [word for word in clean_query_words if word != str(target_slide)]
 
     clean_query = " ".join(clean_query_words).strip() or query
+    if intent == "inspect" and requested_image_index is not None:
+        clean_query = ""
+
+    inspect_mode = None
+    if intent == "inspect":
+        inspect_mode = "ordinal" if requested_image_index is not None else "caption_linked"
 
     refers_to_document = _has_explicit_document_signal(
         query,
@@ -734,6 +842,8 @@ def parse_command(query, session_state: dict | None = None):
         "explicit_jump": explicit_jump,
         "refers_to_document": refers_to_document,
         "target_type": _infer_target_type(intent, clean_query),
+        "requested_image_index": requested_image_index,
+        "inspect_mode": inspect_mode,
         "reasoning_source": "regex",
     }
 
@@ -849,6 +959,12 @@ def reason_command(query, current_slide=None, session_state: dict | None = None,
         "explicit_jump": bool(target_slide) or regex_decision.get("explicit_jump", False),
         "refers_to_document": llm_decision.refers_to_document,
         "target_type": target_type,
+        "requested_image_index": regex_decision.get("requested_image_index"),
+        "inspect_mode": (
+            "ordinal"
+            if intent == "inspect" and regex_decision.get("requested_image_index") is not None
+            else ("caption_linked" if intent == "inspect" else None)
+        ),
         "reasoning_source": "llm",
         "confidence": llm_decision.confidence,
     }
@@ -893,6 +1009,45 @@ def _select_best_match(filtered_results, current_slide=None, target_slide=None):
             best_match = doc
 
     return best_match
+
+
+def _load_slide_images(vector_db, slide: int):
+    try:
+        stored = vector_db.get(
+            where={"slide": slide},
+            include=["documents", "metadatas"],
+        )
+    except Exception:
+        return []
+
+    documents = stored.get("documents") or []
+    metadatas = stored.get("metadatas") or []
+    slide_images = []
+
+    for content, metadata in zip(documents, metadatas):
+        if (metadata or {}).get("type") != "image":
+            continue
+        slide_images.append(
+            {
+                "content": content,
+                "metadata": metadata,
+            }
+        )
+
+    slide_images.sort(key=lambda item: int(item["metadata"].get("image_ind", 0)))
+    return slide_images
+
+
+def _select_ordinal_image_match(vector_db, requested_image_index: int, target_slide=None, current_slide=None):
+    slide = target_slide or current_slide
+    if not slide or requested_image_index is None or requested_image_index < 0:
+        return None
+
+    slide_images = _load_slide_images(vector_db, int(slide))
+    if requested_image_index >= len(slide_images):
+        return None
+
+    return slide_images[requested_image_index]
 
 
 def preview_highlight(query, vector_db, k=4, current_slide=None, session_state: dict | None = None):
@@ -954,10 +1109,28 @@ def retrieve(query, vector_db, k=8, current_slide=None, session_state: dict | No
     target_slide = parsed.get("target_slide")
     target_type = parsed.get("target_type", "auto")
     explicit_jump = parsed.get("explicit_jump", False)
+    requested_image_index = parsed.get("requested_image_index")
     local_highlight_mode = current_slide and _is_local_highlight_candidate(query, parsed)
 
     if intent == "inspect" and target_type != "image":
         target_type = "image"
+
+    if intent == "inspect" and requested_image_index is not None:
+        ordinal_match = _select_ordinal_image_match(
+            vector_db,
+            requested_image_index,
+            target_slide=target_slide,
+            current_slide=current_slide,
+        )
+        if ordinal_match:
+            return _build_metadata_match_response(
+                "inspect",
+                ordinal_match["metadata"],
+                ordinal_match["content"],
+            )
+        if target_slide and explicit_jump:
+            return _build_direct_response("navigate", target_slide)
+        return None
 
     if local_highlight_mode:
         intent = "highlight"

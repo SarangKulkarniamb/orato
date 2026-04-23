@@ -5,7 +5,7 @@ import shutil
 import os
 import asyncio # <-- IMPORT ASYNCIO
 from io import BytesIO
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 from bson import ObjectId
 from fastapi.responses import FileResponse, StreamingResponse
 import httpx
@@ -20,12 +20,11 @@ from auth import get_password_hash, verify_password, create_access_token, get_cu
 from ingestion_pipeline import process_document_pipeline
 from llm_reasoner import LLMCommandReasoner
 from retreival_pipeline import load_vector_db
+from settings import UPLOAD_DIR, get_chroma_path
 from websocket_routes import client_states
 
 http_router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
 SUMMARY_REASONER = LLMCommandReasoner()
 WEB_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
 
@@ -141,24 +140,34 @@ async def _google_custom_search(query: str, max_results: int = 5) -> list[dict]:
 
 async def _duckduckgo_search(query: str, max_results: int = 5) -> list[dict]:
     headers = {"User-Agent": WEB_USER_AGENT}
-    search_url = f"https://duckduckgo.com/html/?q={quote_plus(query)}"
+    search_url = "https://html.duckduckgo.com/html/"
 
     async with httpx.AsyncClient(timeout=12.0, headers=headers, follow_redirects=True) as client:
-        response = await client.get(search_url)
+        response = await client.post(search_url, data={"q": query})
         response.raise_for_status()
         document = html.fromstring(response.text)
 
-    links = document.xpath("//a[contains(@class, 'result__a')]")
-    snippets = document.xpath("//*[contains(@class, 'result__snippet')]")
+    links = document.xpath(
+        "//a[contains(@class, 'result__a')]"
+        " | //h2[contains(@class, 'result__title')]//a"
+        " | //a[@data-testid='result-title-a']"
+        " | //table//a[contains(@href, 'uddg=')]"
+    )
     results: list[dict] = []
+    seen_urls: set[str] = set()
 
-    for index, link in enumerate(links[:max_results]):
-        url = link.get("href") or ""
+    for link in links:
+        url = _resolve_search_result_url(link.get("href") or "")
         title = " ".join(link.text_content().split())
-        snippet = " ".join(snippets[index].text_content().split()) if index < len(snippets) else ""
+        snippet_nodes = link.xpath(
+            "./ancestor::*[contains(@class, 'result')][1]"
+            "//*[contains(@class, 'result__snippet') or contains(@class, 'result-snippet')]"
+        )
+        snippet = " ".join(snippet_nodes[0].text_content().split()) if snippet_nodes else ""
         host = urlparse(url).netloc.replace("www.", "")
-        if not url:
+        if not url or url in seen_urls or not url.startswith(("http://", "https://")):
             continue
+        seen_urls.add(url)
         results.append(
             {
                 "title": title or url,
@@ -168,6 +177,64 @@ async def _duckduckgo_search(query: str, max_results: int = 5) -> list[dict]:
                 "provider": "duckduckgo",
             }
         )
+        if len(results) >= max_results:
+            break
+    return results
+
+
+def _resolve_search_result_url(url: str) -> str:
+    raw_url = (url or "").strip()
+    if not raw_url:
+        return ""
+    if raw_url.startswith("//"):
+        raw_url = f"https:{raw_url}"
+
+    parsed = urlparse(raw_url)
+    if "duckduckgo.com" in (parsed.netloc or ""):
+        params = parse_qs(parsed.query)
+        redirect_target = params.get("uddg", [None])[0]
+        if redirect_target:
+            return unquote(redirect_target)
+
+    return raw_url
+
+
+async def _bing_search(query: str, max_results: int = 5) -> list[dict]:
+    headers = {"User-Agent": WEB_USER_AGENT}
+    params = {"q": query, "count": max(1, min(max_results, 10))}
+
+    async with httpx.AsyncClient(timeout=12.0, headers=headers, follow_redirects=True) as client:
+        response = await client.get("https://www.bing.com/search", params=params)
+        response.raise_for_status()
+        document = html.fromstring(response.text)
+
+    results: list[dict] = []
+    seen_urls: set[str] = set()
+
+    for node in document.xpath("//li[contains(@class, 'b_algo')]"):
+        anchors = node.xpath(".//h2/a")
+        if not anchors:
+            continue
+        anchor = anchors[0]
+        url = _resolve_search_result_url(anchor.get("href") or "")
+        title = " ".join(anchor.text_content().split())
+        snippet_nodes = node.xpath(".//p")
+        snippet = " ".join(snippet_nodes[0].text_content().split()) if snippet_nodes else ""
+        host = urlparse(url).netloc.replace("www.", "")
+        if not url or url in seen_urls or not url.startswith(("http://", "https://")):
+            continue
+        seen_urls.add(url)
+        results.append(
+            {
+                "title": title or url,
+                "url": url,
+                "snippet": snippet,
+                "displayHost": host,
+                "provider": "bing",
+            }
+        )
+        if len(results) >= max_results:
+            break
     return results
 
 
@@ -214,6 +281,13 @@ async def _perform_web_search(query: str) -> tuple[str, list[dict]]:
             return "google", google_results
     except Exception as exc:
         print(f"Google custom search unavailable: {exc}")
+
+    try:
+        bing_results = await _bing_search(query)
+        if bing_results:
+            return "bing", bing_results
+    except Exception as exc:
+        print(f"Bing search unavailable: {exc}")
 
     try:
         duck_results = await _duckduckgo_search(query)
@@ -589,7 +663,7 @@ async def delete_document(doc_id: str, current_user: dict = Depends(get_current_
             print(f"Warning: Could not delete PDF file: {e}")
             
     # 2. Clean up ChromaDB safely to avoid WinError 32
-    chroma_path = f"db/chroma/{doc_id}"
+    chroma_path = get_chroma_path(doc_id)
     if os.path.exists(chroma_path):
         try:
             from retreival_pipeline import load_vector_db

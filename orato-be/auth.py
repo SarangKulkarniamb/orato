@@ -6,8 +6,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from database import retrieve_user
 
-SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret_key")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("JWT_SECRET_KEY") or "fallback_secret_key"
+ALGORITHM = os.getenv("ALGORITHM") or os.getenv("JWT_ALGORITHM") or "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 10080)) # 7 days
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

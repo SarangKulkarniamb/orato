@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-MONGODB_URL = os.getenv("MONGODB_URL")
+MONGODB_URL = os.getenv("MONGODB_URL") or os.getenv("MONGO_URI")
 
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URL)
 

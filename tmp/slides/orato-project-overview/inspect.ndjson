@@ -1,0 +1,437 @@
+{"kind":"deck","id":"orato-project-overview","slideCount":8,"slideSize":{"width":1280,"height":720}}
+{"kind":"shape","slide":1,"role":"bg glow","shapeType":"ellipse","bbox":[-120,-160,430,430]}
+{"kind":"shape","slide":1,"role":"bg glow","shapeType":"ellipse","bbox":[1000,-90,300,300]}
+{"kind":"shape","slide":1,"role":"bg glow","shapeType":"ellipse","bbox":[980,540,340,280]}
+{"kind":"shape","slide":1,"role":"frame","shapeType":"rect","bbox":[54,36,1172,648]}
+{"kind":"shape","slide":1,"role":"chip","shapeType":"roundRect","bbox":[84,84,300,30]}
+{"kind":"shape","slide":1,"role":"chip label","shapeType":"rect","bbox":[96,91,276,16]}
+{"kind":"textbox","slide":1,"role":"chip label","text":"VOICE-FIRST PDF PRESENTATION ASSISTANT","textChars":38,"textLines":1,"bbox":[96,91,276,16]}
+{"kind":"shape","slide":1,"role":"brand","shapeType":"rect","bbox":[84,140,220,42]}
+{"kind":"textbox","slide":1,"role":"brand","text":"ORATO","textChars":5,"textLines":1,"bbox":[84,140,220,42]}
+{"kind":"shape","slide":1,"role":"cover title","shapeType":"rect","bbox":[84,202,660,110]}
+{"kind":"textbox","slide":1,"role":"cover title","text":"Explaining the full project from product idea to live AI architecture","textChars":69,"textLines":1,"bbox":[84,202,660,110]}
+{"kind":"shape","slide":1,"role":"cover subtitle","shapeType":"rect","bbox":[84,326,670,82]}
+{"kind":"textbox","slide":1,"role":"cover subtitle","text":"Orato turns static PDF presentations into an interactive, voice-controlled experience with live navigation, highlighting, zoom, contextual web search, and lecture summary export.","textChars":178,"textLines":1,"bbox":[84,326,670,82]}
+{"kind":"shape","slide":1,"role":"card Core promise","shapeType":"roundRect","bbox":[84,468,310,142]}
+{"kind":"shape","slide":1,"role":"card accent Core promise","shapeType":"rect","bbox":[84,468,8,142]}
+{"kind":"shape","slide":1,"role":"card icon bg Core promise","shapeType":"ellipse","bbox":[106,492,28,28]}
+{"kind":"shape","slide":1,"role":"icon","shapeType":"ellipse","bbox":[112,498,6,6]}
+{"kind":"shape","slide":1,"role":"icon","shapeType":"ellipse","bbox":[122,506,6,6]}
+{"kind":"shape","slide":1,"role":"icon","shapeType":"rect","bbox":[117,502,9,2]}
+{"kind":"shape","slide":1,"role":"card title","shapeType":"rect","bbox":[150,488,226,24]}
+{"kind":"textbox","slide":1,"role":"card title","text":"Core promise","textChars":12,"textLines":1,"bbox":[150,488,226,24]}
+{"kind":"shape","slide":1,"role":"card body","shapeType":"rect","bbox":[108,528,262,66]}
+{"kind":"textbox","slide":1,"role":"card body","text":"Present naturally while Orato\nlistens and controls the document\nfor you.","textChars":72,"textLines":3,"bbox":[108,528,262,66]}
+{"kind":"shape","slide":1,"role":"card Primary inputs","shapeType":"roundRect","bbox":[412,468,310,142]}
+{"kind":"shape","slide":1,"role":"card accent Primary inputs","shapeType":"rect","bbox":[412,468,8,142]}
+{"kind":"shape","slide":1,"role":"card icon bg Primary inputs","shapeType":"ellipse","bbox":[434,492,28,28]}
+{"kind":"shape","slide":1,"role":"icon","shapeType":"roundRect","bbox":[439,497,14,6]}
+{"kind":"shape","slide":1,"role":"icon","shapeType":"roundRect","bbox":[436,505,20,6]}
+{"kind":"shape","slide":1,"role":"icon","shapeType":"roundRect","bbox":[441,513,10,4]}
+{"kind":"shape","slide":1,"role":"card title","shapeType":"rect","bbox":[478,488,226,24]}
+{"kind":"textbox","slide":1,"role":"card title","text":"Primary inputs","textChars":14,"textLines":1,"bbox":[478,488,226,24]}
+{"kind":"shape","slide":1,"role":"card body","shapeType":"rect","bbox":[436,528,262,66]}
+{"kind":"textbox","slide":1,"role":"card body","text":"PDF files, microphone audio, user\nidentity, and live session\ncontext.","textChars":69,"textLines":3,"bbox":[436,528,262,66]}
+{"kind":"shape","slide":1,"role":"card Output experience","shapeType":"roundRect","bbox":[740,468,456,142]}
+{"kind":"shape","slide":1,"role":"card accent Output experience","shapeType":"rect","bbox":[740,468,8,142]}
+{"kind":"shape","slide":1,"role":"card icon bg Output experience","shapeType":"ellipse","bbox":[762,492,28,28]}
+{"kind":"shape","slide":1,"role":"icon","shapeType":"ellipse","bbox":[771,501,10,10]}
+{"kind":"shape","slide":1,"role":"card title","shapeType":"rect","bbox":[806,488,372,24]}
+{"kind":"textbox","slide":1,"role":"card title","text":"Output experience","textChars":17,"textLines":1,"bbox":[806,488,372,24]}
+{"kind":"shape","slide":1,"role":"card body","shapeType":"rect","bbox":[764,528,408,66]}
+{"kind":"textbox","slide":1,"role":"card body","text":"Voice-driven navigation, highlights, inspection,\nsearch mode, and summary export.","textChars":81,"textLines":2,"bbox":[764,528,408,66]}
+{"kind":"shape","slide":1,"role":"hero panel","shapeType":"roundRect","bbox":[798,112,360,280]}
+{"kind":"shape","slide":1,"role":"mini tag","shapeType":"roundRect","bbox":[826,144,86,26]}
+{"kind":"shape","slide":1,"role":"mini tag label","shapeType":"rect","bbox":[836,150,66,14]}
+{"kind":"textbox","slide":1,"role":"mini tag label","text":"Frontend","textChars":8,"textLines":1,"bbox":[836,150,66,14]}
+{"kind":"shape","slide":1,"role":"mini tag","shapeType":"roundRect","bbox":[922,144,82,26]}
+{"kind":"shape","slide":1,"role":"mini tag label","shapeType":"rect","bbox":[932,150,62,14]}
+{"kind":"textbox","slide":1,"role":"mini tag label","text":"FastAPI","textChars":7,"textLines":1,"bbox":[932,150,62,14]}
+{"kind":"shape","slide":1,"role":"mini tag","shapeType":"roundRect","bbox":[1016,144,110,26]}
+{"kind":"shape","slide":1,"role":"mini tag label","shapeType":"rect","bbox":[1026,150,90,14]}
+{"kind":"textbox","slide":1,"role":"mini tag label","text":"WebSockets","textChars":10,"textLines":1,"bbox":[1026,150,90,14]}
+{"kind":"shape","slide":1,"role":"hero block","shapeType":"roundRect","bbox":[826,188,126,74]}
+{"kind":"shape","slide":1,"role":"hero label","shapeType":"rect","bbox":[846,212,80,24]}
+{"kind":"textbox","slide":1,"role":"hero label","text":"Upload","textChars":6,"textLines":1,"bbox":[846,212,80,24]}
+{"kind":"shape","slide":1,"role":"hero block","shapeType":"roundRect","bbox":[1004,188,126,74]}
+{"kind":"shape","slide":1,"role":"hero label","shapeType":"rect","bbox":[1026,212,80,24]}
+{"kind":"textbox","slide":1,"role":"hero label","text":"Listen","textChars":6,"textLines":1,"bbox":[1026,212,80,24]}
+{"kind":"shape","slide":1,"role":"hero arrow","shapeType":"rightArrow","bbox":[954,213,38,20]}
+{"kind":"shape","slide":1,"role":"hero block","shapeType":"roundRect","bbox":[826,292,304,74]}
+{"kind":"shape","slide":1,"role":"hero label","shapeType":"rect","bbox":[850,315,260,24]}
+{"kind":"textbox","slide":1,"role":"hero label","text":"Understand and act on the document","textChars":34,"textLines":1,"bbox":[850,315,260,24]}
+{"kind":"shape","slide":1,"role":"footer","shapeType":"rect","bbox":[846,648,300,18]}
+{"kind":"textbox","slide":1,"role":"footer","text":"React + FastAPI + retrieval + STT","textChars":33,"textLines":1,"bbox":[846,648,300,18]}
+{"kind":"shape","slide":2,"role":"bg glow","shapeType":"ellipse","bbox":[-120,-160,430,430]}
+{"kind":"shape","slide":2,"role":"bg glow","shapeType":"ellipse","bbox":[1000,-90,300,300]}
+{"kind":"shape","slide":2,"role":"bg glow","shapeType":"ellipse","bbox":[980,540,340,280]}
+{"kind":"shape","slide":2,"role":"frame","shapeType":"rect","bbox":[54,36,1172,648]}
+{"kind":"shape","slide":2,"role":"header kicker","shapeType":"rect","bbox":[84,58,380,20]}
+{"kind":"textbox","slide":2,"role":"header kicker","text":"PROBLEM AND VALUE","textChars":17,"textLines":1,"bbox":[84,58,380,20]}
+{"kind":"shape","slide":2,"role":"header page","shapeType":"rect","bbox":[1110,58,90,20]}
+{"kind":"textbox","slide":2,"role":"header page","text":"02 / 08","textChars":7,"textLines":1,"bbox":[1110,58,90,20]}
+{"kind":"shape","slide":2,"role":"header rule","shapeType":"rect","bbox":[84,88,1112,1.5]}
+{"kind":"shape","slide":2,"role":"title","shapeType":"rect","bbox":[84,110,760,108]}
+{"kind":"textbox","slide":2,"role":"title","text":"What problem does Orato solve?","textChars":30,"textLines":1,"bbox":[84,110,760,108]}
+{"kind":"shape","slide":2,"role":"subtitle","shapeType":"rect","bbox":[84,206,760,56]}
+{"kind":"textbox","slide":2,"role":"subtitle","text":"The project is built around one idea: presenters should not have to break flow to control a document.","textChars":101,"textLines":1,"bbox":[84,206,760,56]}
+{"kind":"shape","slide":2,"role":"card Pain in traditional presenting","shapeType":"roundRect","bbox":[84,246,340,326]}
+{"kind":"shape","slide":2,"role":"card accent Pain in traditional presenting","shapeType":"rect","bbox":[84,246,8,326]}
+{"kind":"shape","slide":2,"role":"card icon bg Pain in traditional presenting","shapeType":"ellipse","bbox":[106,270,28,28]}
+{"kind":"shape","slide":2,"role":"icon","shapeType":"ellipse","bbox":[115,279,10,10]}
+{"kind":"shape","slide":2,"role":"card title","shapeType":"rect","bbox":[150,266,256,24]}
+{"kind":"textbox","slide":2,"role":"card title","text":"Pain in traditional presenting","textChars":30,"textLines":1,"bbox":[150,266,256,24]}
+{"kind":"shape","slide":2,"role":"card body","shapeType":"rect","bbox":[108,306,292,250]}
+{"kind":"textbox","slide":2,"role":"card body","text":"Presenters keep switching attention\nbetween speaking and operating the\ninterface. That creates friction when\nchanging slides, locating content,\nzooming into diagrams, or answering\nspontaneous questions.","textChars":202,"textLines":6,"bbox":[108,306,292,250]}
+{"kind":"shape","slide":2,"role":"card What Orato changes","shapeType":"roundRect","bbox":[470,246,340,326]}
+{"kind":"shape","slide":2,"role":"card accent What Orato changes","shapeType":"rect","bbox":[470,246,8,326]}
+{"kind":"shape","slide":2,"role":"card icon bg What Orato changes","shapeType":"ellipse","bbox":[492,270,28,28]}
+{"kind":"shape","slide":2,"role":"icon","shapeType":"ellipse","bbox":[498,276,6,6]}
+{"kind":"shape","slide":2,"role":"icon","shapeType":"ellipse","bbox":[508,284,6,6]}
+{"kind":"shape","slide":2,"role":"icon","shapeType":"rect","bbox":[503,280,9,2]}
+{"kind":"shape","slide":2,"role":"card title","shapeType":"rect","bbox":[536,266,256,24]}
+{"kind":"textbox","slide":2,"role":"card title","text":"What Orato changes","textChars":18,"textLines":1,"bbox":[536,266,256,24]}
+{"kind":"shape","slide":2,"role":"card body","shapeType":"rect","bbox":[494,306,292,250]}
+{"kind":"textbox","slide":2,"role":"card body","text":"The system lets the user upload a\nPDF, open it inside a focused\npresentation view, and then drive the\nsession with natural phrases such as\nnext slide, go to page 5, highlight\nthis, or search the web.","textChars":199,"textLines":6,"bbox":[494,306,292,250]}
+{"kind":"shape","slide":2,"role":"card Who benefits","shapeType":"roundRect","bbox":[856,246,340,326]}
+{"kind":"shape","slide":2,"role":"card accent Who benefits","shapeType":"rect","bbox":[856,246,8,326]}
+{"kind":"shape","slide":2,"role":"card icon bg Who benefits","shapeType":"ellipse","bbox":[878,270,28,28]}
+{"kind":"shape","slide":2,"role":"icon","shapeType":"roundRect","bbox":[883,275,14,6]}
+{"kind":"shape","slide":2,"role":"icon","shapeType":"roundRect","bbox":[880,283,20,6]}
+{"kind":"shape","slide":2,"role":"icon","shapeType":"roundRect","bbox":[885,291,10,4]}
+{"kind":"shape","slide":2,"role":"card title","shapeType":"rect","bbox":[922,266,256,24]}
+{"kind":"textbox","slide":2,"role":"card title","text":"Who benefits","textChars":12,"textLines":1,"bbox":[922,266,256,24]}
+{"kind":"shape","slide":2,"role":"card body","shapeType":"rect","bbox":[880,306,292,250]}
+{"kind":"textbox","slide":2,"role":"card body","text":"Teachers, student presenters, demo\nteams, and workshop facilitators who\nneed hands-free control, clearer\npacing, and better audience\ninteraction during document-based\npresentations.","textChars":181,"textLines":6,"bbox":[880,306,292,250]}
+{"kind":"shape","slide":2,"role":"mini tag","shapeType":"roundRect","bbox":[84,612,106,26]}
+{"kind":"shape","slide":2,"role":"mini tag label","shapeType":"rect","bbox":[94,618,86,14]}
+{"kind":"textbox","slide":2,"role":"mini tag label","text":"Voice control","textChars":13,"textLines":1,"bbox":[94,618,86,14]}
+{"kind":"shape","slide":2,"role":"mini tag","shapeType":"roundRect","bbox":[202,612,142,26]}
+{"kind":"shape","slide":2,"role":"mini tag label","shapeType":"rect","bbox":[212,618,122,14]}
+{"kind":"textbox","slide":2,"role":"mini tag label","text":"Semantic highlight","textChars":18,"textLines":1,"bbox":[212,618,122,14]}
+{"kind":"shape","slide":2,"role":"mini tag","shapeType":"roundRect","bbox":[356,612,132,26]}
+{"kind":"shape","slide":2,"role":"mini tag label","shapeType":"rect","bbox":[366,618,112,14]}
+{"kind":"textbox","slide":2,"role":"mini tag label","text":"Live search mode","textChars":16,"textLines":1,"bbox":[366,618,112,14]}
+{"kind":"shape","slide":2,"role":"mini tag","shapeType":"roundRect","bbox":[500,612,160,26]}
+{"kind":"shape","slide":2,"role":"mini tag label","shapeType":"rect","bbox":[510,618,140,14]}
+{"kind":"textbox","slide":2,"role":"mini tag label","text":"Lecture summary export","textChars":22,"textLines":1,"bbox":[510,618,140,14]}
+{"kind":"shape","slide":3,"role":"bg glow","shapeType":"ellipse","bbox":[-120,-160,430,430]}
+{"kind":"shape","slide":3,"role":"bg glow","shapeType":"ellipse","bbox":[1000,-90,300,300]}
+{"kind":"shape","slide":3,"role":"bg glow","shapeType":"ellipse","bbox":[980,540,340,280]}
+{"kind":"shape","slide":3,"role":"frame","shapeType":"rect","bbox":[54,36,1172,648]}
+{"kind":"shape","slide":3,"role":"header kicker","shapeType":"rect","bbox":[84,58,380,20]}
+{"kind":"textbox","slide":3,"role":"header kicker","text":"PRODUCT WORKFLOW","textChars":16,"textLines":1,"bbox":[84,58,380,20]}
+{"kind":"shape","slide":3,"role":"header page","shapeType":"rect","bbox":[1110,58,90,20]}
+{"kind":"textbox","slide":3,"role":"header page","text":"03 / 08","textChars":7,"textLines":1,"bbox":[1110,58,90,20]}
+{"kind":"shape","slide":3,"role":"header rule","shapeType":"rect","bbox":[84,88,1112,1.5]}
+{"kind":"shape","slide":3,"role":"title","shapeType":"rect","bbox":[84,110,760,108]}
+{"kind":"textbox","slide":3,"role":"title","text":"End-to-end user journey","textChars":23,"textLines":1,"bbox":[84,110,760,108]}
+{"kind":"shape","slide":3,"role":"subtitle","shapeType":"rect","bbox":[84,206,760,56]}
+{"kind":"textbox","slide":3,"role":"subtitle","text":"The repo supports a complete flow from account creation to document ingestion to live AI-assisted presentation.","textChars":111,"textLines":1,"bbox":[84,206,760,56]}
+{"kind":"shape","slide":3,"role":"step 1. Sign in and open the library","shapeType":"roundRect","bbox":[84,286,248,240]}
+{"kind":"shape","slide":3,"role":"step accent","shapeType":"rect","bbox":[84,286,248,10]}
+{"kind":"shape","slide":3,"role":"step title","shapeType":"rect","bbox":[106,320,200,52]}
+{"kind":"textbox","slide":3,"role":"step title","text":"1. Sign in and open the library","textChars":31,"textLines":1,"bbox":[106,320,200,52]}
+{"kind":"shape","slide":3,"role":"step body","shapeType":"rect","bbox":[106,390,204,100]}
+{"kind":"textbox","slide":3,"role":"step body","text":"JWT-based auth and a\nprotected dashboard manage\nwho can upload, list, and\npresent documents.","textChars":92,"textLines":4,"bbox":[106,390,204,100]}
+{"kind":"shape","slide":3,"role":"step 2. Upload a PDF","shapeType":"roundRect","bbox":[372,286,248,240]}
+{"kind":"shape","slide":3,"role":"step accent","shapeType":"rect","bbox":[372,286,248,10]}
+{"kind":"shape","slide":3,"role":"step title","shapeType":"rect","bbox":[394,320,200,52]}
+{"kind":"textbox","slide":3,"role":"step title","text":"2. Upload a PDF","textChars":15,"textLines":1,"bbox":[394,320,200,52]}
+{"kind":"shape","slide":3,"role":"step body","shapeType":"rect","bbox":[394,390,204,100]}
+{"kind":"textbox","slide":3,"role":"step body","text":"The file is stored under\nuploads/, document metadata\nis written to MongoDB, and\ningestion starts\nimmediately.","textChars":109,"textLines":5,"bbox":[394,390,204,100]}
+{"kind":"shape","slide":3,"role":"step 3. Parse and index content","shapeType":"roundRect","bbox":[660,286,248,240]}
+{"kind":"shape","slide":3,"role":"step accent","shapeType":"rect","bbox":[660,286,248,10]}
+{"kind":"shape","slide":3,"role":"step title","shapeType":"rect","bbox":[682,320,200,52]}
+{"kind":"textbox","slide":3,"role":"step title","text":"3. Parse and index content","textChars":26,"textLines":1,"bbox":[682,320,200,52]}
+{"kind":"shape","slide":3,"role":"step body","shapeType":"rect","bbox":[682,390,204,100]}
+{"kind":"textbox","slide":3,"role":"step body","text":"Text blocks, tables, and\nimage context are extracted,\nchunked, embedded, and\npersisted in Chroma for\nsemantic retrieval.","textChars":120,"textLines":5,"bbox":[682,390,204,100]}
+{"kind":"shape","slide":3,"role":"step 4. Present and enrich","shapeType":"roundRect","bbox":[948,286,248,240]}
+{"kind":"shape","slide":3,"role":"step accent","shapeType":"rect","bbox":[948,286,248,10]}
+{"kind":"shape","slide":3,"role":"step title","shapeType":"rect","bbox":[970,320,200,52]}
+{"kind":"textbox","slide":3,"role":"step title","text":"4. Present and enrich","textChars":21,"textLines":1,"bbox":[970,320,200,52]}
+{"kind":"shape","slide":3,"role":"step body","shapeType":"rect","bbox":[970,390,204,100]}
+{"kind":"textbox","slide":3,"role":"step body","text":"Inside the presentation\nscreen, voice actions drive\nnavigation, highlighting,\nzoom, search mode, and\nlecture summary export.","textChars":124,"textLines":5,"bbox":[970,390,204,100]}
+{"kind":"shape","slide":3,"role":"workflow arrow","shapeType":"rightArrow","bbox":[334,393,28,18]}
+{"kind":"shape","slide":3,"role":"workflow arrow","shapeType":"rightArrow","bbox":[622,393,28,18]}
+{"kind":"shape","slide":3,"role":"workflow arrow","shapeType":"rightArrow","bbox":[910,393,28,18]}
+{"kind":"shape","slide":3,"role":"journey dot","shapeType":"ellipse","bbox":[108,588,10,10]}
+{"kind":"shape","slide":3,"role":"journey text","shapeType":"rect","bbox":[130,582,1028,26]}
+{"kind":"textbox","slide":3,"role":"journey text","text":"Library.tsx handles file upload and document listing.","textChars":53,"textLines":1,"bbox":[130,582,1028,26]}
+{"kind":"shape","slide":3,"role":"journey dot","shapeType":"ellipse","bbox":[108,618,10,10]}
+{"kind":"shape","slide":3,"role":"journey text","shapeType":"rect","bbox":[130,612,1028,26]}
+{"kind":"textbox","slide":3,"role":"journey text","text":"http_routes.py performs secure upload, storage, and retrieval APIs.","textChars":67,"textLines":1,"bbox":[130,612,1028,26]}
+{"kind":"shape","slide":3,"role":"journey dot","shapeType":"ellipse","bbox":[108,648,10,10]}
+{"kind":"shape","slide":3,"role":"journey text","shapeType":"rect","bbox":[130,642,1028,26]}
+{"kind":"textbox","slide":3,"role":"journey text","text":"ingestion_pipeline.py creates searchable vector data before the UI uses the file.","textChars":81,"textLines":1,"bbox":[130,642,1028,26]}
+{"kind":"shape","slide":4,"role":"bg glow","shapeType":"ellipse","bbox":[-120,-160,430,430]}
+{"kind":"shape","slide":4,"role":"bg glow","shapeType":"ellipse","bbox":[1000,-90,300,300]}
+{"kind":"shape","slide":4,"role":"bg glow","shapeType":"ellipse","bbox":[980,540,340,280]}
+{"kind":"shape","slide":4,"role":"frame","shapeType":"rect","bbox":[54,36,1172,648]}
+{"kind":"shape","slide":4,"role":"header kicker","shapeType":"rect","bbox":[84,58,380,20]}
+{"kind":"textbox","slide":4,"role":"header kicker","text":"ARCHITECTURE","textChars":12,"textLines":1,"bbox":[84,58,380,20]}
+{"kind":"shape","slide":4,"role":"header page","shapeType":"rect","bbox":[1110,58,90,20]}
+{"kind":"textbox","slide":4,"role":"header page","text":"04 / 08","textChars":7,"textLines":1,"bbox":[1110,58,90,20]}
+{"kind":"shape","slide":4,"role":"header rule","shapeType":"rect","bbox":[84,88,1112,1.5]}
+{"kind":"shape","slide":4,"role":"title","shapeType":"rect","bbox":[84,110,760,108]}
+{"kind":"textbox","slide":4,"role":"title","text":"System architecture across the stack","textChars":36,"textLines":1,"bbox":[84,110,760,108]}
+{"kind":"shape","slide":4,"role":"subtitle","shapeType":"rect","bbox":[84,206,760,56]}
+{"kind":"textbox","slide":4,"role":"subtitle","text":"Orato is split into a React client, a FastAPI service layer, document intelligence services, and persistent storage.","textChars":116,"textLines":1,"bbox":[84,206,760,56]}
+{"kind":"shape","slide":4,"role":"layer frontend","shapeType":"roundRect","bbox":[96,252,248,320]}
+{"kind":"shape","slide":4,"role":"layer api","shapeType":"roundRect","bbox":[384,252,248,320]}
+{"kind":"shape","slide":4,"role":"layer intelligence","shapeType":"roundRect","bbox":[672,252,248,320]}
+{"kind":"shape","slide":4,"role":"layer storage","shapeType":"roundRect","bbox":[960,252,224,320]}
+{"kind":"shape","slide":4,"role":"layer title","shapeType":"rect","bbox":[120,276,140,30]}
+{"kind":"textbox","slide":4,"role":"layer title","text":"Frontend","textChars":8,"textLines":1,"bbox":[120,276,140,30]}
+{"kind":"shape","slide":4,"role":"layer body","shapeType":"rect","bbox":[120,326,180,120]}
+{"kind":"textbox","slide":4,"role":"layer body","text":"React + Vite + Tailwind\nreact-pdf + Zustand\nPresentation UI + Search Mode","textChars":73,"textLines":3,"bbox":[120,326,180,120]}
+{"kind":"shape","slide":4,"role":"layer title","shapeType":"rect","bbox":[408,276,170,30]}
+{"kind":"textbox","slide":4,"role":"layer title","text":"FastAPI Layer","textChars":13,"textLines":1,"bbox":[408,276,170,30]}
+{"kind":"shape","slide":4,"role":"layer body","shapeType":"rect","bbox":[408,326,184,180]}
+{"kind":"textbox","slide":4,"role":"layer body","text":"REST routes for auth,\nupload, document serving,\nweb search, and summary export\n\nWebSocket endpoints for\nstate sync and audio streaming","textChars":134,"textLines":5,"bbox":[408,326,184,180]}
+{"kind":"shape","slide":4,"role":"layer title","shapeType":"rect","bbox":[696,276,170,30]}
+{"kind":"textbox","slide":4,"role":"layer title","text":"AI / Retrieval","textChars":14,"textLines":1,"bbox":[696,276,170,30]}
+{"kind":"shape","slide":4,"role":"layer body","shapeType":"rect","bbox":[696,326,184,180]}
+{"kind":"textbox","slide":4,"role":"layer body","text":"PDF/PPT parsing\nChunking + embeddings\nRegex + LLM reasoning\nSemantic retrieval\nContextual web search\nLecture summarization","textChars":122,"textLines":6,"bbox":[696,326,184,180]}
+{"kind":"shape","slide":4,"role":"layer title","shapeType":"rect","bbox":[984,276,120,30]}
+{"kind":"textbox","slide":4,"role":"layer title","text":"Storage","textChars":7,"textLines":1,"bbox":[984,276,120,30]}
+{"kind":"shape","slide":4,"role":"layer body","shapeType":"rect","bbox":[984,326,150,180]}
+{"kind":"textbox","slide":4,"role":"layer body","text":"MongoDB\nusers + documents\n\nChroma\nvector indexes\n\nuploads/\nsecure file store","textChars":76,"textLines":6,"bbox":[984,326,150,180]}
+{"kind":"shape","slide":4,"role":"arch arrow","shapeType":"rightArrow","bbox":[348,404,26,18]}
+{"kind":"shape","slide":4,"role":"arch arrow","shapeType":"rightArrow","bbox":[636,404,26,18]}
+{"kind":"shape","slide":4,"role":"arch arrow","shapeType":"rightArrow","bbox":[924,404,26,18]}
+{"kind":"shape","slide":4,"role":"mini tag","shapeType":"roundRect","bbox":[120,520,112,26]}
+{"kind":"shape","slide":4,"role":"mini tag label","shapeType":"rect","bbox":[130,526,92,14]}
+{"kind":"textbox","slide":4,"role":"mini tag label","text":"/auth/upload","textChars":12,"textLines":1,"bbox":[130,526,92,14]}
+{"kind":"shape","slide":4,"role":"mini tag","shapeType":"roundRect","bbox":[408,520,148,26]}
+{"kind":"shape","slide":4,"role":"mini tag label","shapeType":"rect","bbox":[418,526,128,14]}
+{"kind":"textbox","slide":4,"role":"mini tag label","text":"/ws/stt/{client_id}","textChars":19,"textLines":1,"bbox":[418,526,128,14]}
+{"kind":"shape","slide":4,"role":"mini tag","shapeType":"roundRect","bbox":[696,520,126,26]}
+{"kind":"shape","slide":4,"role":"mini tag label","shapeType":"rect","bbox":[706,526,106,14]}
+{"kind":"textbox","slide":4,"role":"mini tag label","text":"analyze_query()","textChars":15,"textLines":1,"bbox":[706,526,106,14]}
+{"kind":"shape","slide":4,"role":"mini tag","shapeType":"roundRect","bbox":[984,520,130,26]}
+{"kind":"shape","slide":4,"role":"mini tag label","shapeType":"rect","bbox":[994,526,110,14]}
+{"kind":"textbox","slide":4,"role":"mini tag label","text":"db/chroma/<doc>","textChars":15,"textLines":1,"bbox":[994,526,110,14]}
+{"kind":"shape","slide":5,"role":"bg glow","shapeType":"ellipse","bbox":[-120,-160,430,430]}
+{"kind":"shape","slide":5,"role":"bg glow","shapeType":"ellipse","bbox":[1000,-90,300,300]}
+{"kind":"shape","slide":5,"role":"bg glow","shapeType":"ellipse","bbox":[980,540,340,280]}
+{"kind":"shape","slide":5,"role":"frame","shapeType":"rect","bbox":[54,36,1172,648]}
+{"kind":"shape","slide":5,"role":"header kicker","shapeType":"rect","bbox":[84,58,380,20]}
+{"kind":"textbox","slide":5,"role":"header kicker","text":"REALTIME CONTROL LOOP","textChars":21,"textLines":1,"bbox":[84,58,380,20]}
+{"kind":"shape","slide":5,"role":"header page","shapeType":"rect","bbox":[1110,58,90,20]}
+{"kind":"textbox","slide":5,"role":"header page","text":"05 / 08","textChars":7,"textLines":1,"bbox":[1110,58,90,20]}
+{"kind":"shape","slide":5,"role":"header rule","shapeType":"rect","bbox":[84,88,1112,1.5]}
+{"kind":"shape","slide":5,"role":"title","shapeType":"rect","bbox":[84,110,760,108]}
+{"kind":"textbox","slide":5,"role":"title","text":"How live voice control works","textChars":28,"textLines":1,"bbox":[84,110,760,108]}
+{"kind":"shape","slide":5,"role":"subtitle","shapeType":"rect","bbox":[84,206,760,56]}
+{"kind":"textbox","slide":5,"role":"subtitle","text":"The presentation experience is driven by two WebSocket channels: one for control state and one for streaming microphone audio.","textChars":126,"textLines":1,"bbox":[84,206,760,56]}
+{"kind":"shape","slide":5,"role":"loop panel","shapeType":"roundRect","bbox":[84,262,1112,332]}
+{"kind":"shape","slide":5,"role":"lane","shapeType":"rect","bbox":[110,286,200,24]}
+{"kind":"textbox","slide":5,"role":"lane","text":"Interim preview path","textChars":20,"textLines":1,"bbox":[110,286,200,24]}
+{"kind":"shape","slide":5,"role":"lane","shapeType":"rect","bbox":[110,430,200,24]}
+{"kind":"textbox","slide":5,"role":"lane","text":"Final action path","textChars":17,"textLines":1,"bbox":[110,430,200,24]}
+{"kind":"shape","slide":5,"role":"top loop box","shapeType":"roundRect","bbox":[116,330,164,74]}
+{"kind":"shape","slide":5,"role":"top loop label","shapeType":"rect","bbox":[132,348,132,40]}
+{"kind":"textbox","slide":5,"role":"top loop label","text":"Mic audio\nfrom browser","textChars":22,"textLines":2,"bbox":[132,348,132,40]}
+{"kind":"shape","slide":5,"role":"top loop box","shapeType":"roundRect","bbox":[326,330,164,74]}
+{"kind":"shape","slide":5,"role":"top loop label","shapeType":"rect","bbox":[342,348,132,40]}
+{"kind":"textbox","slide":5,"role":"top loop label","text":"Google STT\nstreaming","textChars":20,"textLines":2,"bbox":[342,348,132,40]}
+{"kind":"shape","slide":5,"role":"top loop box","shapeType":"roundRect","bbox":[536,330,190,74]}
+{"kind":"shape","slide":5,"role":"top loop label","shapeType":"rect","bbox":[552,348,158,40]}
+{"kind":"textbox","slide":5,"role":"top loop label","text":"preview_highlight()\nchecks likely target","textChars":40,"textLines":2,"bbox":[552,348,158,40]}
+{"kind":"shape","slide":5,"role":"top loop box","shapeType":"roundRect","bbox":[772,330,170,74]}
+{"kind":"shape","slide":5,"role":"top loop label","shapeType":"rect","bbox":[788,348,138,40]}
+{"kind":"textbox","slide":5,"role":"top loop label","text":"Action payload\nqueued and sent","textChars":30,"textLines":2,"bbox":[788,348,138,40]}
+{"kind":"shape","slide":5,"role":"top loop box","shapeType":"roundRect","bbox":[988,330,166,74]}
+{"kind":"shape","slide":5,"role":"top loop label","shapeType":"rect","bbox":[1004,348,134,40]}
+{"kind":"textbox","slide":5,"role":"top loop label","text":"UI preview overlay\nbefore final command","textChars":39,"textLines":2,"bbox":[1004,348,134,40]}
+{"kind":"shape","slide":5,"role":"top arrow","shapeType":"rightArrow","bbox":[286,357,28,18]}
+{"kind":"shape","slide":5,"role":"top arrow","shapeType":"rightArrow","bbox":[498,357,28,18]}
+{"kind":"shape","slide":5,"role":"top arrow","shapeType":"rightArrow","bbox":[734,357,28,18]}
+{"kind":"shape","slide":5,"role":"top arrow","shapeType":"rightArrow","bbox":[950,357,28,18]}
+{"kind":"shape","slide":5,"role":"bottom loop box","shapeType":"roundRect","bbox":[116,474,164,74]}
+{"kind":"shape","slide":5,"role":"bottom loop label","shapeType":"rect","bbox":[132,492,132,40]}
+{"kind":"textbox","slide":5,"role":"bottom loop label","text":"Final transcript","textChars":16,"textLines":1,"bbox":[132,492,132,40]}
+{"kind":"shape","slide":5,"role":"bottom loop box","shapeType":"roundRect","bbox":[326,474,190,74]}
+{"kind":"shape","slide":5,"role":"bottom loop label","shapeType":"rect","bbox":[342,492,158,40]}
+{"kind":"textbox","slide":5,"role":"bottom loop label","text":"analyze_query()\nregex + LLM reasoning","textChars":37,"textLines":2,"bbox":[342,492,158,40]}
+{"kind":"shape","slide":5,"role":"bottom loop box","shapeType":"roundRect","bbox":[562,474,180,74]}
+{"kind":"shape","slide":5,"role":"bottom loop label","shapeType":"rect","bbox":[578,492,148,40]}
+{"kind":"textbox","slide":5,"role":"bottom loop label","text":"retrieve()\nsemantic match","textChars":25,"textLines":2,"bbox":[578,492,148,40]}
+{"kind":"shape","slide":5,"role":"bottom loop box","shapeType":"roundRect","bbox":[788,474,182,74]}
+{"kind":"shape","slide":5,"role":"bottom loop label","shapeType":"rect","bbox":[804,492,150,40]}
+{"kind":"textbox","slide":5,"role":"bottom loop label","text":"navigate / highlight /\nzoom / inspect","textChars":37,"textLines":2,"bbox":[804,492,150,40]}
+{"kind":"shape","slide":5,"role":"bottom loop box","shapeType":"roundRect","bbox":[1016,474,138,74]}
+{"kind":"shape","slide":5,"role":"bottom loop label","shapeType":"rect","bbox":[1032,492,106,40]}
+{"kind":"textbox","slide":5,"role":"bottom loop label","text":"Transcript\nfeedback","textChars":19,"textLines":2,"bbox":[1032,492,106,40]}
+{"kind":"shape","slide":5,"role":"bottom arrow","shapeType":"rightArrow","bbox":[286,501,28,18]}
+{"kind":"shape","slide":5,"role":"bottom arrow","shapeType":"rightArrow","bbox":[524,501,28,18]}
+{"kind":"shape","slide":5,"role":"bottom arrow","shapeType":"rightArrow","bbox":[750,501,28,18]}
+{"kind":"shape","slide":5,"role":"bottom arrow","shapeType":"rightArrow","bbox":[978,501,28,18]}
+{"kind":"shape","slide":5,"role":"explain","shapeType":"rect","bbox":[110,618,1000,44]}
+{"kind":"textbox","slide":5,"role":"explain","text":"Why this matters: previews make the interface feel responsive before a sentence is even finished, while the final path uses more deliberate reasoning and retrieval before changing the document.","textChars":193,"textLines":1,"bbox":[110,618,1000,44]}
+{"kind":"shape","slide":6,"role":"bg glow","shapeType":"ellipse","bbox":[-120,-160,430,430]}
+{"kind":"shape","slide":6,"role":"bg glow","shapeType":"ellipse","bbox":[1000,-90,300,300]}
+{"kind":"shape","slide":6,"role":"bg glow","shapeType":"ellipse","bbox":[980,540,340,280]}
+{"kind":"shape","slide":6,"role":"frame","shapeType":"rect","bbox":[54,36,1172,648]}
+{"kind":"shape","slide":6,"role":"header kicker","shapeType":"rect","bbox":[84,58,380,20]}
+{"kind":"textbox","slide":6,"role":"header kicker","text":"DOCUMENT INTELLIGENCE","textChars":21,"textLines":1,"bbox":[84,58,380,20]}
+{"kind":"shape","slide":6,"role":"header page","shapeType":"rect","bbox":[1110,58,90,20]}
+{"kind":"textbox","slide":6,"role":"header page","text":"06 / 08","textChars":7,"textLines":1,"bbox":[1110,58,90,20]}
+{"kind":"shape","slide":6,"role":"header rule","shapeType":"rect","bbox":[84,88,1112,1.5]}
+{"kind":"shape","slide":6,"role":"title","shapeType":"rect","bbox":[84,110,760,108]}
+{"kind":"textbox","slide":6,"role":"title","text":"What makes the document 'understandable' to the system","textChars":54,"textLines":1,"bbox":[84,110,760,108]}
+{"kind":"shape","slide":6,"role":"subtitle","shapeType":"rect","bbox":[84,206,760,56]}
+{"kind":"textbox","slide":6,"role":"subtitle","text":"Orato does more than speech-to-text. It builds structured context around the file and the current session.","textChars":106,"textLines":1,"bbox":[84,206,760,56]}
+{"kind":"shape","slide":6,"role":"card Parsing and chunking","shapeType":"roundRect","bbox":[84,254,340,188]}
+{"kind":"shape","slide":6,"role":"card accent Parsing and chunking","shapeType":"rect","bbox":[84,254,8,188]}
+{"kind":"shape","slide":6,"role":"card icon bg Parsing and chunking","shapeType":"ellipse","bbox":[106,278,28,28]}
+{"kind":"shape","slide":6,"role":"icon","shapeType":"roundRect","bbox":[111,283,14,6]}
+{"kind":"shape","slide":6,"role":"icon","shapeType":"roundRect","bbox":[108,291,20,6]}
+{"kind":"shape","slide":6,"role":"icon","shapeType":"roundRect","bbox":[113,299,10,4]}
+{"kind":"shape","slide":6,"role":"card title","shapeType":"rect","bbox":[150,274,256,24]}
+{"kind":"textbox","slide":6,"role":"card title","text":"Parsing and chunking","textChars":20,"textLines":1,"bbox":[150,274,256,24]}
+{"kind":"shape","slide":6,"role":"card body","shapeType":"rect","bbox":[108,314,292,112]}
+{"kind":"textbox","slide":6,"role":"card body","text":"parsing.py extracts text, tables, and\nimage context. ingestion_pipeline.py\nconverts that into searchable\ndocuments with slide, section, and\nbounding-box metadata.","textChars":162,"textLines":5,"bbox":[108,314,292,112]}
+{"kind":"shape","slide":6,"role":"card Retrieval and reasoning","shapeType":"roundRect","bbox":[470,254,340,188]}
+{"kind":"shape","slide":6,"role":"card accent Retrieval and reasoning","shapeType":"rect","bbox":[470,254,8,188]}
+{"kind":"shape","slide":6,"role":"card icon bg Retrieval and reasoning","shapeType":"ellipse","bbox":[492,278,28,28]}
+{"kind":"shape","slide":6,"role":"icon","shapeType":"ellipse","bbox":[498,284,6,6]}
+{"kind":"shape","slide":6,"role":"icon","shapeType":"ellipse","bbox":[508,292,6,6]}
+{"kind":"shape","slide":6,"role":"icon","shapeType":"rect","bbox":[503,288,9,2]}
+{"kind":"shape","slide":6,"role":"card title","shapeType":"rect","bbox":[536,274,256,24]}
+{"kind":"textbox","slide":6,"role":"card title","text":"Retrieval and reasoning","textChars":23,"textLines":1,"bbox":[536,274,256,24]}
+{"kind":"shape","slide":6,"role":"card body","shapeType":"rect","bbox":[494,314,292,112]}
+{"kind":"textbox","slide":6,"role":"card body","text":"retreival_pipeline.py combines\nrule-based parsing with optional LLM\nreasoning so the system can decide\nwhether to navigate, search, zoom,\ninspect, or ignore non-document\nchatter.","textChars":178,"textLines":6,"bbox":[494,314,292,112]}
+{"kind":"shape","slide":6,"role":"card Session-aware enrichment","shapeType":"roundRect","bbox":[856,254,340,188]}
+{"kind":"shape","slide":6,"role":"card accent Session-aware enrichment","shapeType":"rect","bbox":[856,254,8,188]}
+{"kind":"shape","slide":6,"role":"card icon bg Session-aware enrichment","shapeType":"ellipse","bbox":[878,278,28,28]}
+{"kind":"shape","slide":6,"role":"icon","shapeType":"ellipse","bbox":[887,287,10,10]}
+{"kind":"shape","slide":6,"role":"card title","shapeType":"rect","bbox":[922,274,256,24]}
+{"kind":"textbox","slide":6,"role":"card title","text":"Session-aware enrichment","textChars":24,"textLines":1,"bbox":[922,274,256,24]}
+{"kind":"shape","slide":6,"role":"card body","shapeType":"rect","bbox":[880,314,292,112]}
+{"kind":"textbox","slide":6,"role":"card body","text":"http_routes.py resolves contextual\nweb queries from focus text and\ntranscript history, then reuses the\nsame session context to build lecture\nsummaries.","textChars":151,"textLines":5,"bbox":[880,314,292,112]}
+{"kind":"shape","slide":6,"role":"feature strip","shapeType":"roundRect","bbox":[84,482,1112,118]}
+{"kind":"shape","slide":6,"role":"mini tag","shapeType":"roundRect","bbox":[110,510,182,26]}
+{"kind":"shape","slide":6,"role":"mini tag label","shapeType":"rect","bbox":[120,516,162,14]}
+{"kind":"textbox","slide":6,"role":"mini tag label","text":"Image captions for diagrams","textChars":27,"textLines":1,"bbox":[120,516,162,14]}
+{"kind":"shape","slide":6,"role":"mini tag","shapeType":"roundRect","bbox":[304,510,232,26]}
+{"kind":"shape","slide":6,"role":"mini tag label","shapeType":"rect","bbox":[314,516,212,14]}
+{"kind":"textbox","slide":6,"role":"mini tag label","text":"Bounding boxes for highlight overlays","textChars":37,"textLines":1,"bbox":[314,516,212,14]}
+{"kind":"shape","slide":6,"role":"mini tag","shapeType":"roundRect","bbox":[548,510,206,26]}
+{"kind":"shape","slide":6,"role":"mini tag label","shapeType":"rect","bbox":[558,516,186,14]}
+{"kind":"textbox","slide":6,"role":"mini tag label","text":"Chroma vector index per document","textChars":32,"textLines":1,"bbox":[558,516,186,14]}
+{"kind":"shape","slide":6,"role":"mini tag","shapeType":"roundRect","bbox":[766,510,236,26]}
+{"kind":"shape","slide":6,"role":"mini tag label","shapeType":"rect","bbox":[776,516,216,14]}
+{"kind":"textbox","slide":6,"role":"mini tag label","text":"Contextual web search fallback chain","textChars":36,"textLines":1,"bbox":[776,516,216,14]}
+{"kind":"shape","slide":6,"role":"mini tag","shapeType":"roundRect","bbox":[1014,510,156,26]}
+{"kind":"shape","slide":6,"role":"mini tag label","shapeType":"rect","bbox":[1024,516,136,14]}
+{"kind":"textbox","slide":6,"role":"mini tag label","text":"Lecture summary PDF export","textChars":26,"textLines":1,"bbox":[1024,516,136,14]}
+{"kind":"shape","slide":6,"role":"summary","shapeType":"rect","bbox":[110,554,980,24]}
+{"kind":"textbox","slide":6,"role":"summary","text":"This combination is what turns static content into an interactive teaching companion rather than a simple PDF viewer.","textChars":117,"textLines":1,"bbox":[110,554,980,24]}
+{"kind":"shape","slide":7,"role":"bg glow","shapeType":"ellipse","bbox":[-120,-160,430,430]}
+{"kind":"shape","slide":7,"role":"bg glow","shapeType":"ellipse","bbox":[1000,-90,300,300]}
+{"kind":"shape","slide":7,"role":"bg glow","shapeType":"ellipse","bbox":[980,540,340,280]}
+{"kind":"shape","slide":7,"role":"frame","shapeType":"rect","bbox":[54,36,1172,648]}
+{"kind":"shape","slide":7,"role":"header kicker","shapeType":"rect","bbox":[84,58,380,20]}
+{"kind":"textbox","slide":7,"role":"header kicker","text":"STACK AND APIS","textChars":14,"textLines":1,"bbox":[84,58,380,20]}
+{"kind":"shape","slide":7,"role":"header page","shapeType":"rect","bbox":[1110,58,90,20]}
+{"kind":"textbox","slide":7,"role":"header page","text":"07 / 08","textChars":7,"textLines":1,"bbox":[1110,58,90,20]}
+{"kind":"shape","slide":7,"role":"header rule","shapeType":"rect","bbox":[84,88,1112,1.5]}
+{"kind":"shape","slide":7,"role":"title","shapeType":"rect","bbox":[84,110,760,108]}
+{"kind":"textbox","slide":7,"role":"title","text":"Technology stack and implementation footprint","textChars":45,"textLines":1,"bbox":[84,110,760,108]}
+{"kind":"shape","slide":7,"role":"subtitle","shapeType":"rect","bbox":[84,206,760,56]}
+{"kind":"textbox","slide":7,"role":"subtitle","text":"The project mixes modern frontend tooling, FastAPI services, retrieval infrastructure, and external AI providers.","textChars":113,"textLines":1,"bbox":[84,206,760,56]}
+{"kind":"shape","slide":7,"role":"card Frontend stack","shapeType":"roundRect","bbox":[84,250,340,282]}
+{"kind":"shape","slide":7,"role":"card accent Frontend stack","shapeType":"rect","bbox":[84,250,8,282]}
+{"kind":"shape","slide":7,"role":"card icon bg Frontend stack","shapeType":"ellipse","bbox":[106,274,28,28]}
+{"kind":"shape","slide":7,"role":"icon","shapeType":"ellipse","bbox":[115,283,10,10]}
+{"kind":"shape","slide":7,"role":"card title","shapeType":"rect","bbox":[150,270,256,24]}
+{"kind":"textbox","slide":7,"role":"card title","text":"Frontend stack","textChars":14,"textLines":1,"bbox":[150,270,256,24]}
+{"kind":"shape","slide":7,"role":"card body","shapeType":"rect","bbox":[108,310,292,206]}
+{"kind":"textbox","slide":7,"role":"card body","text":"React 18, Vite, React Router,\nTailwind styles, Framer Motion,\nlucide-react icons, react-pdf for\ndocument rendering, and Zustand for\nauth/session state.","textChars":151,"textLines":5,"bbox":[108,310,292,206]}
+{"kind":"shape","slide":7,"role":"card Backend stack","shapeType":"roundRect","bbox":[470,250,340,282]}
+{"kind":"shape","slide":7,"role":"card accent Backend stack","shapeType":"rect","bbox":[470,250,8,282]}
+{"kind":"shape","slide":7,"role":"card icon bg Backend stack","shapeType":"ellipse","bbox":[492,274,28,28]}
+{"kind":"shape","slide":7,"role":"icon","shapeType":"roundRect","bbox":[497,279,14,6]}
+{"kind":"shape","slide":7,"role":"icon","shapeType":"roundRect","bbox":[494,287,20,6]}
+{"kind":"shape","slide":7,"role":"icon","shapeType":"roundRect","bbox":[499,295,10,4]}
+{"kind":"shape","slide":7,"role":"card title","shapeType":"rect","bbox":[536,270,256,24]}
+{"kind":"textbox","slide":7,"role":"card title","text":"Backend stack","textChars":13,"textLines":1,"bbox":[536,270,256,24]}
+{"kind":"shape","slide":7,"role":"card body","shapeType":"rect","bbox":[494,310,292,206]}
+{"kind":"textbox","slide":7,"role":"card body","text":"FastAPI, Motor for MongoDB access,\nJWT auth with passlib + python-jose,\npypdf/pdfplumber/python-pptx parsing\nutilities, and httpx for provider\nintegrations.","textChars":156,"textLines":5,"bbox":[494,310,292,206]}
+{"kind":"shape","slide":7,"role":"card AI and infra stack","shapeType":"roundRect","bbox":[856,250,340,282]}
+{"kind":"shape","slide":7,"role":"card accent AI and infra stack","shapeType":"rect","bbox":[856,250,8,282]}
+{"kind":"shape","slide":7,"role":"card icon bg AI and infra stack","shapeType":"ellipse","bbox":[878,274,28,28]}
+{"kind":"shape","slide":7,"role":"icon","shapeType":"ellipse","bbox":[884,280,6,6]}
+{"kind":"shape","slide":7,"role":"icon","shapeType":"ellipse","bbox":[894,288,6,6]}
+{"kind":"shape","slide":7,"role":"icon","shapeType":"rect","bbox":[889,284,9,2]}
+{"kind":"shape","slide":7,"role":"card title","shapeType":"rect","bbox":[922,270,256,24]}
+{"kind":"textbox","slide":7,"role":"card title","text":"AI and infra stack","textChars":18,"textLines":1,"bbox":[922,270,256,24]}
+{"kind":"shape","slide":7,"role":"card body","shapeType":"rect","bbox":[880,310,292,206]}
+{"kind":"textbox","slide":7,"role":"card body","text":"Google Cloud Speech streaming, Chroma\n+ HuggingFace embeddings for\nretrieval, optional\nGemini/OpenAI-compatible reasoning,\nand external web search providers for\nsearch mode.","textChars":173,"textLines":6,"bbox":[880,310,292,206]}
+{"kind":"shape","slide":7,"role":"endpoint rail","shapeType":"roundRect","bbox":[84,566,1112,76]}
+{"kind":"shape","slide":7,"role":"rail label","shapeType":"rect","bbox":[108,588,190,22]}
+{"kind":"textbox","slide":7,"role":"rail label","text":"Representative API surface","textChars":26,"textLines":1,"bbox":[108,588,190,22]}
+{"kind":"shape","slide":7,"role":"mini tag","shapeType":"roundRect","bbox":[320,580,126,26]}
+{"kind":"shape","slide":7,"role":"mini tag label","shapeType":"rect","bbox":[330,586,106,14]}
+{"kind":"textbox","slide":7,"role":"mini tag label","text":"/auth/login","textChars":11,"textLines":1,"bbox":[330,586,106,14]}
+{"kind":"shape","slide":7,"role":"mini tag","shapeType":"roundRect","bbox":[460,580,126,26]}
+{"kind":"shape","slide":7,"role":"mini tag label","shapeType":"rect","bbox":[470,586,106,14]}
+{"kind":"textbox","slide":7,"role":"mini tag label","text":"/auth/upload","textChars":12,"textLines":1,"bbox":[470,586,106,14]}
+{"kind":"shape","slide":7,"role":"mini tag","shapeType":"roundRect","bbox":[600,580,126,26]}
+{"kind":"shape","slide":7,"role":"mini tag label","shapeType":"rect","bbox":[610,586,106,14]}
+{"kind":"textbox","slide":7,"role":"mini tag label","text":"/auth/view-doc/{id}","textChars":19,"textLines":1,"bbox":[610,586,106,14]}
+{"kind":"shape","slide":7,"role":"mini tag","shapeType":"roundRect","bbox":[740,580,126,26]}
+{"kind":"shape","slide":7,"role":"mini tag label","shapeType":"rect","bbox":[750,586,106,14]}
+{"kind":"textbox","slide":7,"role":"mini tag label","text":"/auth/web-search/{id}","textChars":21,"textLines":1,"bbox":[750,586,106,14]}
+{"kind":"shape","slide":7,"role":"mini tag","shapeType":"roundRect","bbox":[880,580,126,26]}
+{"kind":"shape","slide":7,"role":"mini tag label","shapeType":"rect","bbox":[890,586,106,14]}
+{"kind":"textbox","slide":7,"role":"mini tag label","text":"/ws/{client_id}","textChars":15,"textLines":1,"bbox":[890,586,106,14]}
+{"kind":"shape","slide":7,"role":"mini tag","shapeType":"roundRect","bbox":[1020,580,126,26]}
+{"kind":"shape","slide":7,"role":"mini tag label","shapeType":"rect","bbox":[1030,586,106,14]}
+{"kind":"textbox","slide":7,"role":"mini tag label","text":"/ws/stt/{client_id}","textChars":19,"textLines":1,"bbox":[1030,586,106,14]}
+{"kind":"shape","slide":8,"role":"bg glow","shapeType":"ellipse","bbox":[-120,-160,430,430]}
+{"kind":"shape","slide":8,"role":"bg glow","shapeType":"ellipse","bbox":[1000,-90,300,300]}
+{"kind":"shape","slide":8,"role":"bg glow","shapeType":"ellipse","bbox":[980,540,340,280]}
+{"kind":"shape","slide":8,"role":"frame","shapeType":"rect","bbox":[54,36,1172,648]}
+{"kind":"shape","slide":8,"role":"header kicker","shapeType":"rect","bbox":[84,58,380,20]}
+{"kind":"textbox","slide":8,"role":"header kicker","text":"ASSESSMENT AND NEXT STEPS","textChars":25,"textLines":1,"bbox":[84,58,380,20]}
+{"kind":"shape","slide":8,"role":"header page","shapeType":"rect","bbox":[1110,58,90,20]}
+{"kind":"textbox","slide":8,"role":"header page","text":"08 / 08","textChars":7,"textLines":1,"bbox":[1110,58,90,20]}
+{"kind":"shape","slide":8,"role":"header rule","shapeType":"rect","bbox":[84,88,1112,1.5]}
+{"kind":"shape","slide":8,"role":"title","shapeType":"rect","bbox":[84,110,760,108]}
+{"kind":"textbox","slide":8,"role":"title","text":"What is strong already, and what should improve next?","textChars":53,"textLines":1,"bbox":[84,110,760,108]}
+{"kind":"shape","slide":8,"role":"subtitle","shapeType":"rect","bbox":[84,206,760,56]}
+{"kind":"textbox","slide":8,"role":"subtitle","text":"The repo already demonstrates a compelling idea, but it also reveals clear engineering opportunities for the next iteration.","textChars":124,"textLines":1,"bbox":[84,206,760,56]}
+{"kind":"shape","slide":8,"role":"card Current strengths","shapeType":"roundRect","bbox":[84,252,360,314]}
+{"kind":"shape","slide":8,"role":"card accent Current strengths","shapeType":"rect","bbox":[84,252,8,314]}
+{"kind":"shape","slide":8,"role":"card icon bg Current strengths","shapeType":"ellipse","bbox":[106,276,28,28]}
+{"kind":"shape","slide":8,"role":"icon","shapeType":"ellipse","bbox":[115,285,10,10]}
+{"kind":"shape","slide":8,"role":"card title","shapeType":"rect","bbox":[150,272,276,24]}
+{"kind":"textbox","slide":8,"role":"card title","text":"Current strengths","textChars":17,"textLines":1,"bbox":[150,272,276,24]}
+{"kind":"shape","slide":8,"role":"card body","shapeType":"rect","bbox":[108,312,312,238]}
+{"kind":"textbox","slide":8,"role":"card body","text":"The project already covers the entire\nexperience: auth, uploads, parsing,\nvector indexing, live document control,\nweb search mode, and summary export.\nThat makes it much more complete than a\nnarrow proof of concept.","textChars":215,"textLines":6,"bbox":[108,312,312,238]}
+{"kind":"shape","slide":8,"role":"card Current risks and gaps","shapeType":"roundRect","bbox":[460,252,360,314]}
+{"kind":"shape","slide":8,"role":"card accent Current risks and gaps","shapeType":"rect","bbox":[460,252,8,314]}
+{"kind":"shape","slide":8,"role":"card icon bg Current risks and gaps","shapeType":"ellipse","bbox":[482,276,28,28]}
+{"kind":"shape","slide":8,"role":"icon","shapeType":"roundRect","bbox":[487,281,14,6]}
+{"kind":"shape","slide":8,"role":"icon","shapeType":"roundRect","bbox":[484,289,20,6]}
+{"kind":"shape","slide":8,"role":"icon","shapeType":"roundRect","bbox":[489,297,10,4]}
+{"kind":"shape","slide":8,"role":"card title","shapeType":"rect","bbox":[526,272,276,24]}
+{"kind":"textbox","slide":8,"role":"card title","text":"Current risks and gaps","textChars":22,"textLines":1,"bbox":[526,272,276,24]}
+{"kind":"shape","slide":8,"role":"card body","shapeType":"rect","bbox":[484,312,312,238]}
+{"kind":"textbox","slide":8,"role":"card body","text":"Upload ingestion is synchronous, which\ncan slow large files. Some secrets are\nstored in .env. Search reliability\ndepends on external providers. The UI\ncurrently focuses on PDFs even though\nparsing.py also supports PPTX.","textChars":219,"textLines":6,"bbox":[484,312,312,238]}
+{"kind":"shape","slide":8,"role":"card Best next steps","shapeType":"roundRect","bbox":[836,252,360,314]}
+{"kind":"shape","slide":8,"role":"card accent Best next steps","shapeType":"rect","bbox":[836,252,8,314]}
+{"kind":"shape","slide":8,"role":"card icon bg Best next steps","shapeType":"ellipse","bbox":[858,276,28,28]}
+{"kind":"shape","slide":8,"role":"icon","shapeType":"ellipse","bbox":[864,282,6,6]}
+{"kind":"shape","slide":8,"role":"icon","shapeType":"ellipse","bbox":[874,290,6,6]}
+{"kind":"shape","slide":8,"role":"icon","shapeType":"rect","bbox":[869,286,9,2]}
+{"kind":"shape","slide":8,"role":"card title","shapeType":"rect","bbox":[902,272,276,24]}
+{"kind":"textbox","slide":8,"role":"card title","text":"Best next steps","textChars":15,"textLines":1,"bbox":[902,272,276,24]}
+{"kind":"shape","slide":8,"role":"card body","shapeType":"rect","bbox":[860,312,312,238]}
+{"kind":"textbox","slide":8,"role":"card body","text":"Move ingestion to background jobs,\nharden provider configuration and secret\nhandling, add richer analytics and\nobservability, improve testing, and\nextend the UI so presentation\nintelligence works consistently across\nmore source formats.","textChars":236,"textLines":7,"bbox":[860,312,312,238]}
+{"kind":"shape","slide":8,"role":"closing bar","shapeType":"roundRect","bbox":[84,604,1112,62]}
+{"kind":"shape","slide":8,"role":"closing text","shapeType":"rect","bbox":[110,624,1060,20]}
+{"kind":"textbox","slide":8,"role":"closing text","text":"Bottom line: Orato is already a strong full-stack AI product prototype, and the next round of work should focus on reliability, scalability, and polish rather than reinventing the core concept.","textChars":193,"textLines":1,"bbox":[110,624,1060,20]}

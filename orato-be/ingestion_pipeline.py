@@ -6,6 +6,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Assumes your parsing.py is in the same directory
 from parsing import parse_ppt, parse_pdf
+from settings import get_chroma_path
 
 def load_file(file_path):
     if file_path.endswith(".pptx"):
@@ -118,7 +119,7 @@ def create_vector_db(documents, doc_id):
         documents=documents,
         embedding=embedding_model,
         collection_name=f"doc_{doc_id}",
-        persist_directory=f"db/chroma/{doc_id}" 
+        persist_directory=get_chroma_path(doc_id)
     )
 
     print(f"✅ Vector DB created successfully for Doc ID: {doc_id}")

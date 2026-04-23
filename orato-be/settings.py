@@ -26,7 +26,7 @@ def get_cors_origins() -> list[str]:
     return [
         "http://127.0.0.1:5173",
         "http://localhost:5173",
-        "orato-7rya697xw-sarang-kulkarnis-projects-586de903.vercel.app",
+        "https://orato-7rya697xw-sarang-kulkarnis-projects-586de903.vercel.app",
         "https://orato-six.vercel.app/",
     ]
 

@@ -1,9 +1,6 @@
 import re
 from functools import lru_cache
 
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
-
 from llm_reasoner import LLMCommandReasoner
 from settings import get_chroma_path
 
@@ -248,17 +245,25 @@ COMMAND_REASONER = LLMCommandReasoner()
 
 @lru_cache(maxsize=1)
 def _get_embedding_model():
+    from langchain_huggingface import HuggingFaceEmbeddings
+
     return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
-_VECTOR_DB_CACHE: dict[str, Chroma] = {}
+def _get_chroma_class():
+    from langchain_chroma import Chroma
+
+    return Chroma
+
+
+_VECTOR_DB_CACHE: dict[str, object] = {}
 
 def load_vector_db(doc_id):
     """Loads the specific vector database for the requested document."""
     if doc_id in _VECTOR_DB_CACHE:
         return _VECTOR_DB_CACHE[doc_id]
 
-    vector_db = Chroma(
+    vector_db = _get_chroma_class()(
         collection_name=f"doc_{doc_id}",
         persist_directory=get_chroma_path(doc_id),
         embedding_function=_get_embedding_model(),

@@ -1,12 +1,22 @@
 import os
 from langchain_core.documents import Document
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Assumes your parsing.py is in the same directory
 from parsing import parse_ppt, parse_pdf
 from settings import get_chroma_path
+
+
+def _get_embedding_model():
+    from langchain_huggingface import HuggingFaceEmbeddings
+
+    return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+
+def _get_chroma_class():
+    from langchain_chroma import Chroma
+
+    return Chroma
 
 def load_file(file_path):
     if file_path.endswith(".pptx"):
@@ -111,11 +121,9 @@ def chunk_documents(documents):
 
 def create_vector_db(documents, doc_id):
     """Creates a unique vector DB in an isolated folder for the specific document."""
-    embedding_model = HuggingFaceEmbeddings(
-        model_name="all-MiniLM-L6-v2"
-    )
+    embedding_model = _get_embedding_model()
 
-    vector_store = Chroma.from_documents(
+    vector_store = _get_chroma_class().from_documents(
         documents=documents,
         embedding=embedding_model,
         collection_name=f"doc_{doc_id}",

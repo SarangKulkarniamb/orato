@@ -4,14 +4,6 @@ import time
 from typing import Dict
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from google.cloud.speech_v1 import SpeechAsyncClient
-from google.cloud.speech_v1.types import (
-    RecognitionConfig,
-    StreamingRecognitionConfig,
-    StreamingRecognizeRequest,
-)
-
-from retreival_pipeline import analyze_query, load_vector_db, preview_highlight, retrieve
 
 
 websocket_router = APIRouter()
@@ -19,6 +11,28 @@ websocket_router = APIRouter()
 active_connections: Dict[str, WebSocket] = {}
 client_states: Dict[str, dict] = {}
 pending_actions: Dict[str, list[dict]] = {}
+
+
+def _load_retrieval_tools():
+    from retreival_pipeline import analyze_query, load_vector_db, preview_highlight, retrieve
+
+    return analyze_query, load_vector_db, preview_highlight, retrieve
+
+
+def _load_speech_types():
+    from google.cloud.speech_v1 import SpeechAsyncClient
+    from google.cloud.speech_v1.types import (
+        RecognitionConfig,
+        StreamingRecognitionConfig,
+        StreamingRecognizeRequest,
+    )
+
+    return (
+        SpeechAsyncClient,
+        RecognitionConfig,
+        StreamingRecognitionConfig,
+        StreamingRecognizeRequest,
+    )
 
 
 def _normalize_transcript(transcript: str) -> str:
@@ -239,6 +253,14 @@ async def stt_endpoint(websocket: WebSocket, client_id: str):
 
     parts = client_id.split("_")
     doc_id = parts[-1] if len(parts) > 1 else client_id
+
+    analyze_query, load_vector_db, preview_highlight, retrieve = _load_retrieval_tools()
+    (
+        SpeechAsyncClient,
+        RecognitionConfig,
+        StreamingRecognitionConfig,
+        StreamingRecognizeRequest,
+    ) = _load_speech_types()
 
     try:
         session_vector_db = load_vector_db(doc_id)

@@ -16,21 +16,39 @@ from pypdf import PdfReader
 from database import UserCollection, db
 from models import UserCreate, UserLogin, UserResponse, Token
 from auth import get_password_hash, verify_password, create_access_token, get_current_user
-
-from ingestion_pipeline import process_document_pipeline
-from llm_reasoner import LLMCommandReasoner
-from retreival_pipeline import load_vector_db
 from settings import UPLOAD_DIR, get_chroma_path
-from websocket_routes import client_states
 
 http_router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-SUMMARY_REASONER = LLMCommandReasoner()
 WEB_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
 
 
 class WebSearchRequest(BaseModel):
     query: str
+
+
+def _get_session_states() -> dict:
+    from websocket_routes import client_states
+
+    return client_states
+
+
+def _get_summary_reasoner():
+    from llm_reasoner import LLMCommandReasoner
+
+    return LLMCommandReasoner()
+
+
+def _load_vector_db_for_doc(doc_id: str):
+    from retreival_pipeline import load_vector_db
+
+    return load_vector_db(doc_id)
+
+
+def _process_document(file_path: str, doc_id: str):
+    from ingestion_pipeline import process_document_pipeline
+
+    return process_document_pipeline(file_path, doc_id)
 
 
 def _normalize_search_query(query: str) -> str:
@@ -69,6 +87,7 @@ def _normalize_search_query(query: str) -> str:
 def _build_session_search_context(doc_id: str, current_user: dict) -> dict:
     primary_client_id = f"{current_user['id']}_{doc_id}"
     fallback_client_id = f"client_{doc_id}"
+    client_states = _get_session_states()
     return client_states.get(primary_client_id) or client_states.get(fallback_client_id) or {}
 
 
@@ -323,7 +342,7 @@ def _extract_document_context(doc_id: str, storage_path: str, transcript_history
 
     if transcript_query:
         try:
-            vector_db = load_vector_db(doc_id)
+            vector_db = _load_vector_db_for_doc(doc_id)
             results = vector_db.similarity_search(transcript_query[:1200], k=6)
             for match in results:
                 slide = match.metadata.get("slide", "?")
@@ -381,7 +400,7 @@ def _build_fallback_summary(document_title: str, transcript_history: list[str], 
 
 def _build_summary_text(document_title: str, transcript_history: list[str], document_context: str) -> str:
     teacher_speech = "\n".join(_dedupe_lines(transcript_history, 24))
-    llm_summary = SUMMARY_REASONER.summarize_lecture(
+    llm_summary = _get_summary_reasoner().summarize_lecture(
         document_title=document_title,
         teacher_speech=teacher_speech,
         document_context=document_context,
@@ -542,7 +561,7 @@ async def upload_document(
     # asyncio.to_thread runs the heavy CPU parsing in a separate thread 
     # so it doesn't freeze your entire FastAPI server for other users, 
     # but the API response WILL wait here until it finishes!
-    await asyncio.to_thread(process_document_pipeline, str(file_path), doc_id)
+    await asyncio.to_thread(_process_document, str(file_path), doc_id)
     
     return {"id": doc_id, "filename": file.filename}
 
@@ -580,6 +599,7 @@ async def export_lecture_summary_pdf(doc_id: str, current_user: dict = Depends(g
 
     primary_client_id = f"{current_user['id']}_{doc_id}"
     fallback_client_id = f"client_{doc_id}"
+    client_states = _get_session_states()
     session_state = client_states.get(primary_client_id) or client_states.get(fallback_client_id) or {}
     transcript_history = [
         line.strip()

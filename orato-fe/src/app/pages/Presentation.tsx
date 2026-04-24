@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
-import { Mic, MicOff, ArrowLeft, Maximize2, Wifi, WifiOff, FileText, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Download, Globe2, ExternalLink, Search } from "lucide-react";
+import { Mic, MicOff, ArrowLeft, Maximize2, Wifi, WifiOff, FileText, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Download, Globe2, ExternalLink, Search, AlertCircle, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Document, Page, pdfjs } from "react-pdf";
 import useAuthStore from "../store/authStore";
@@ -85,6 +86,11 @@ type WebSearchState = {
   selected: WebSearchResult | null;
 };
 
+type DocumentLoadError = {
+  title: string;
+  message: string;
+};
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const getBboxArea = (bbox: number[]) => Math.max(0, bbox[2] ?? 0) * Math.max(0, bbox[3] ?? 0);
@@ -142,6 +148,8 @@ export function Presentation() {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [docTitle, setDocTitle] = useState("");
   const [numPages, setNumPages] = useState<number | null>(null);
+  const [documentError, setDocumentError] = useState<DocumentLoadError | null>(null);
+  const [documentReloadToken, setDocumentReloadToken] = useState(0);
   
   const [activePage, setActivePage] = useState(1);
   const activePageRef = useRef(activePage); 
@@ -161,6 +169,7 @@ export function Presentation() {
   const [viewerMode, setViewerMode] = useState<"document" | "search">("document");
   const [webSearchState, setWebSearchState] = useState<WebSearchState | null>(null);
   const [isWebSearching, setIsWebSearching] = useState(false);
+  const hasLoadedDocument = Boolean(fileUrl);
   
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -202,22 +211,70 @@ export function Presentation() {
   }, [navigate]);
 
   useEffect(() => {
+    if (!id) {
+      setDocumentError({
+        title: "Missing presentation",
+        message: "We could not determine which presentation to open. Return to the library and choose a document again.",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    let objectUrl: string | null = null;
+
     const loadSecurePDF = async () => {
+      setIsLoading(true);
+      setDocumentError(null);
+      setFileUrl(null);
+      setDocTitle("");
+      setNumPages(null);
+      setPdfDocument(null);
+      setBboxes({});
+      setWebSearchState(null);
+      setViewerMode("document");
+      setIsConnected(false);
+      setIsListening(false);
+      setClientId("");
+
       try {
         const response = await api.get(`/auth/view-doc/${id}`, { responseType: "blob" });
-        const url = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
-        setFileUrl(url);
+        objectUrl = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+        setFileUrl(objectUrl);
         const meta = await api.get(`/auth/doc/${id}`);
         setDocTitle(meta.data.filename);
+        setTranscript("System Ready");
       } catch (err) {
-        setTranscript("Error: Access Denied");
+        if (axios.isAxiosError(err) && err.response?.status === 401) {
+          navigate("/auth");
+          return;
+        }
+
+        const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+        const nextError: DocumentLoadError =
+          status === 403 || status === 404
+            ? {
+                title: "Presentation unavailable",
+                message: "This file could not be opened. It may have been removed, moved, or no longer belongs to this account.",
+              }
+            : {
+                title: "Could not load presentation",
+                message: "The viewer could not reach the document right now. Try again in a moment or return to the library.",
+              };
+
+        setDocumentError(nextError);
+        setTranscript(status === 403 || status === 404 ? "Error: Access Denied" : "Error: Could not load document");
       } finally {
         setIsLoading(false);
       }
     };
-    if (id) loadSecurePDF();
-    return () => { if (fileUrl) URL.revokeObjectURL(fileUrl); };
-  }, [id]);
+    loadSecurePDF();
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [documentReloadToken, id, navigate]);
 
   const convertRawDataToUrl = useCallback((imgObj: any) => {
     if (!imgObj) return null;
@@ -540,7 +597,7 @@ export function Presentation() {
   }, [id]);
 
   const handleExportSummary = useCallback(async () => {
-    if (!id || isExportingSummary) return;
+    if (!id || isExportingSummary || !hasLoadedDocument) return;
 
     try {
       setIsExportingSummary(true);
@@ -563,7 +620,7 @@ export function Presentation() {
     } finally {
       setIsExportingSummary(false);
     }
-  }, [docTitle, id, isExportingSummary]);
+  }, [docTitle, hasLoadedDocument, id, isExportingSummary]);
 
   const handleClear = useCallback(() => {
     setBboxes({}); 
@@ -618,7 +675,7 @@ export function Presentation() {
   // WEBSOCKET 1: MAIN CONTROL 
   // =====================================================================
   useEffect(() => {
-    if (!id) return;
+    if (!id || !hasLoadedDocument || documentError) return;
     
     const token = useAuthStore.getState().token || localStorage.getItem("token");
     const user = useAuthStore.getState().user;
@@ -749,7 +806,7 @@ export function Presentation() {
         ws.close();
       }
     };
-  }, [id]);
+  }, [documentError, hasLoadedDocument, id]);
 
   // =====================================================================
   // WEBSOCKET 2 & MIC: GOOGLE STT 
@@ -824,14 +881,14 @@ export function Presentation() {
       }
     };
 
-    if (isListening && clientId) startRecording();
+    if (isListening && clientId && hasLoadedDocument) startRecording();
     else {
       stopRecording();
       setTranscript(prev => prev === "Listening..." ? "System Ready" : prev);
     }
 
     return () => stopRecording();
-  }, [isListening, clientId]);
+  }, [isListening, clientId, hasLoadedDocument]);
 
   // =====================================================================
   // UI LOGIC
@@ -914,14 +971,14 @@ export function Presentation() {
             <>
               <div className="w-full bg-white/[0.02] rounded-xl p-4 border border-white/[0.05] text-center">
                 <div className="flex items-center justify-center gap-3 mb-2">
-                  {isConnected ? <Wifi className="w-4 text-emerald-400" /> : <WifiOff className="w-4 text-red-500" />}
-                  <span className="text-sm font-medium">{isConnected ? "Connected" : "Offline"}</span>
+                  {isConnected && hasLoadedDocument ? <Wifi className="w-4 text-emerald-400" /> : <WifiOff className="w-4 text-red-500" />}
+                  <span className="text-sm font-medium">{isConnected && hasLoadedDocument ? "Connected" : documentError ? "Unavailable" : "Offline"}</span>
                 </div>
               </div>
 
               <div className="w-full bg-[#8b5cf6]/10 p-4 rounded-xl border border-[#8b5cf6]/20 text-center">
                 <FileText className="text-[#8b5cf6] mx-auto mb-2" size={24}/>
-                <span className="text-sm font-medium text-white truncate block">{docTitle}</span>
+                <span className="text-sm font-medium text-white truncate block">{docTitle || "Document unavailable"}</span>
               </div>
 
               <div className="w-full grid grid-cols-2 gap-3">
@@ -931,7 +988,7 @@ export function Presentation() {
 
               <button
                 onClick={handleExportSummary}
-                disabled={isExportingSummary}
+                disabled={isExportingSummary || !hasLoadedDocument}
                 className="w-full flex items-center justify-center gap-2 p-3 bg-[#8b5cf6]/12 hover:bg-[#8b5cf6]/18 disabled:opacity-60 disabled:cursor-not-allowed border border-[#8b5cf6]/25 text-violet-100 rounded-xl text-xs font-medium transition-colors"
               >
                 {isExportingSummary ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
@@ -942,7 +999,8 @@ export function Presentation() {
                 <div className="bg-[#080b14]/50 border border-white/[0.05] rounded-2xl p-5 flex flex-col items-center gap-5">
                    <button 
                     onClick={() => setIsListening(!isListening)} 
-                    className={`p-5 rounded-full transition-all duration-300 shadow-xl ${isListening ? "bg-red-500 scale-110 shadow-red-500/20" : "bg-[#8b5cf6] hover:bg-violet-500 shadow-violet-600/20"}`}
+                    disabled={!hasLoadedDocument}
+                    className={`p-5 rounded-full transition-all duration-300 shadow-xl disabled:opacity-45 disabled:cursor-not-allowed ${isListening ? "bg-red-500 scale-110 shadow-red-500/20" : "bg-[#8b5cf6] hover:bg-violet-500 shadow-violet-600/20"}`}
                    >
                     {isListening ? <MicOff size={24} color="white" /> : <Mic size={24} color="white" />}
                    </button>
@@ -959,11 +1017,11 @@ export function Presentation() {
           
           {sidebarCollapsed && (
              <div className="flex flex-col gap-6 items-center py-4">
-                <button onClick={() => setIsListening(!isListening)} className={`p-3 rounded-full ${isListening ? "bg-red-500 shadow-red-500/20" : "bg-[#8b5cf6] shadow-violet-600/20"}`}>
+                <button onClick={() => setIsListening(!isListening)} disabled={!hasLoadedDocument} className={`p-3 rounded-full disabled:opacity-45 disabled:cursor-not-allowed ${isListening ? "bg-red-500 shadow-red-500/20" : "bg-[#8b5cf6] shadow-violet-600/20"}`}>
                   {isListening ? <MicOff size={20} className="text-white" /> : <Mic size={20} className="text-white" />}
                 </button>
-                <div className={`w-3 h-3 rounded-full ${isConnected ? "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]" : "bg-red-500"}`} />
-                <button onClick={handleExportSummary} disabled={isExportingSummary} className="text-slate-400 hover:text-white disabled:opacity-50 transition-colors"><Download size={20}/></button>
+                <div className={`w-3 h-3 rounded-full ${isConnected && hasLoadedDocument ? "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]" : "bg-red-500"}`} />
+                <button onClick={handleExportSummary} disabled={isExportingSummary || !hasLoadedDocument} className="text-slate-400 hover:text-white disabled:opacity-50 transition-colors"><Download size={20}/></button>
                 <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 4))} className="text-slate-400 hover:text-white transition-colors"><ZoomIn size={20}/></button>
                 <button onClick={() => setZoomLevel(z => Math.max(z - 0.1, 0.4))} className="text-slate-400 hover:text-white transition-colors"><ZoomOut size={20}/></button>
              </div>
@@ -1060,6 +1118,33 @@ export function Presentation() {
                     );
                   })}
                 </Document>
+              </div>
+            )}
+            {!fileUrl && documentError && (
+              <div className="w-full max-w-2xl">
+                <div className="rounded-[32px] border border-red-500/20 bg-[linear-gradient(180deg,rgba(27,14,25,0.98),rgba(11,13,23,0.98))] px-8 py-10 shadow-2xl shadow-black/40">
+                  <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-6">
+                    <AlertCircle className="w-7 h-7 text-red-300" />
+                  </div>
+                  <h2 className="text-2xl font-semibold text-white tracking-tight">{documentError.title}</h2>
+                  <p className="mt-3 text-sm leading-7 text-slate-300">{documentError.message}</p>
+                  <div className="mt-8 flex flex-wrap gap-3">
+                    <button
+                      onClick={() => setDocumentReloadToken((value) => value + 1)}
+                      className="inline-flex items-center gap-2 rounded-full bg-white text-[#080b14] px-5 py-3 text-sm font-medium transition-colors hover:bg-slate-200"
+                    >
+                      <RefreshCw size={15} />
+                      Retry load
+                    </button>
+                    <button
+                      onClick={() => navigate("/library")}
+                      className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] px-5 py-3 text-sm font-medium text-slate-200 transition-colors hover:bg-white/[0.05]"
+                    >
+                      <ArrowLeft size={15} />
+                      Back to library
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
